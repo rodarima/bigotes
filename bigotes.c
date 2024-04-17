@@ -558,11 +558,11 @@ sample(const char *cmd)
 
 	/* Always recompute the stats with all samples */
 	stats(&s);
+	printf("\n"); /* Finish stat line */
 
-	fprintf(stdout, "\n");
-
-	printf("\n");
+	printf("\n"); /* Leave one empty before histogram */
 	plot_histogram(&s, 70, 8);
+	printf("\n"); /* Leave one empty after histogram */
 
 	free(s.samples);
 
