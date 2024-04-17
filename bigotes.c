@@ -18,9 +18,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#define W 70
-#define H 8
-
 static char *progname = "bigotes";
 
 struct sampling {
@@ -462,44 +459,35 @@ compute_histogram(struct sampling *s, int nbins, long *count, int ignore_outlier
 }
 
 static void
-plot_histogram(struct sampling *s, int ignore_outliers)
+plot_histogram(struct sampling *s, int w, int h, int ignore_outliers)
 {
-	long count[W];
+	long *count = safe_calloc(w, sizeof(long));
 
-
-	compute_histogram(s, W, count, ignore_outliers);
+	compute_histogram(s, w, count, ignore_outliers);
 
 	long maxcount = 0;
-	for (int i = 0; i < W; i++) {
+	for (int i = 0; i < w; i++) {
 		if (count[i] > maxcount)
 			maxcount = count[i];
 	}
 
-	double barlen[W];
-	for (int i = 0; i < W; i++) {
+	double *barlen = safe_calloc(w, sizeof(double));
+	for (int i = 0; i < w; i++) {
 		double rel = (double) count[i] / (double) maxcount;
-		barlen[i] = (double) H * rel;
+		barlen[i] = (double) h * rel;
 	}
 
-	char screen[H][W];
-	memset(screen, ' ', sizeof(screen));
-
-	for (int i = 0; i < H; i++) {
-		for (int j = 0; j < W; j++) {
-			if (i < barlen[j]) {
-				screen[H - i - 1][j] = '#';
-			} else if (i == 0) {
-				screen[H - i - 1][j] = '_';
-			}
+	for (int i = h-1; i >= 0; i--) {
+		putchar(' ');
+		for (int j = 0; j < w; j++) {
+			if (i < barlen[j])
+				putchar('#');
+			else if (i == 0)
+				putchar('_');
+			else
+				putchar(' ');
 		}
-	}
-
-	for (int i = 0; i < H; i++) {
-		putc(' ', stdout);
-		for (int j = 0; j < W; j++) {
-			putc(screen[i][j], stdout);
-		}
-		putc('\n', stdout);
+		putchar('\n');
 	}
 }
 
@@ -549,9 +537,7 @@ sample(char *argv[])
 	fprintf(stdout, "\n");
 
 	printf("\n");
-	plot_histogram(&s, 0);
-	//plot_histogram(&s, 1);
-	//printf("\n");
+	plot_histogram(&s, 70, 8, 0);
 
 	free(s.samples);
 
