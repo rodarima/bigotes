@@ -15,6 +15,7 @@
 
 static char *progname = "bigotes";
 static int read_from_stdin = 0;
+static int use_wall_clock = 0;
 
 struct sampling {
 	long nmax;
@@ -136,30 +137,32 @@ do_run(const char *cmd, double *ptime)
 	}
 
 	char line[4096];
-	if (fgets(line, 4096, p) == NULL) {
-		err("missing stdout line");
-		ret = -1;
-		goto bad_close;
+	if (!use_wall_clock) {
+		if (fgets(line, 4096, p) == NULL) {
+			err("missing stdout line");
+			ret = -1;
+			goto close_pipe;
+		}
+
+		char *nl = strchr(line, '\n');
+		if (nl != NULL)
+			*nl = '\0';
+
+		/* Clean status line */
+		//fprintf(stderr, "%s\n", line);
+
+		double time;
+		sscanf(line, "%le", &time);
+		//printf("got %e\n", time);
+		*ptime = time;
 	}
-
-	char *nl = strchr(line, '\n');
-	if (nl != NULL)
-		*nl = '\0';
-
-	/* Clean status line */
-	//fprintf(stderr, "%s\n", line);
-
-	double time;
-	sscanf(line, "%le", &time);
-	//printf("got %e\n", time);
-	*ptime = time;
 
 	/* Drain the rest of the stdout */
 	while (fgets(line, 4096, p) != NULL) {
 		//fprintf(stderr, "%s", line);
 	}
 
-bad_close:
+close_pipe:
 	pclose(p);
 
 	return ret;
@@ -551,6 +554,8 @@ sample(const char *cmd)
 			}
 			double t1 = get_time();
 			walltime = t1 - t0;
+			if (use_wall_clock)
+				metric = walltime;
 		}
 
 		add_sample(&s, metric, walltime);
@@ -582,10 +587,13 @@ main(int argc, char *argv[])
 	int opt;
 	const char *cmd = "stdin";
 
-	while ((opt = getopt(argc, argv, "hi")) != -1) {
+	while ((opt = getopt(argc, argv, "hiw")) != -1) {
 		switch (opt) {
 			case 'i':
 				read_from_stdin = 1;
+				break;
+			case 'w':
+				use_wall_clock = 1;
 				break;
 			case 'h':
 			default: /* '?' */
