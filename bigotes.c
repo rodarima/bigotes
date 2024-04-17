@@ -30,6 +30,7 @@ struct sampling {
 	const char *name;
 	double t0;
 	double min_time;
+	double last_stats;
 };
 
 static void
@@ -362,12 +363,17 @@ stats(struct sampling *s)
 	for (int i = 1; i < NMAD; i++)
 		oldmad[i - 1] = oldmad[i];
 	oldmad[NMAD - 1] = rsemad;
+
+	s->last_stats = get_time();
 }
 
 static int
 should_continue(struct sampling *s)
 {
-	stats(s);
+	double dt = get_time() - s->last_stats;
+	/* Update stats at 30 FPS */
+	if (dt > 1.0 / 30.0)
+		stats(s);
 
 	if (s->n < s->nmin)
 		return 1;
@@ -375,7 +381,7 @@ should_continue(struct sampling *s)
 	//if (s->rsem > s->min_rsem)
 	//	return 1;
 
-	if (s->emad > s->min_emad)
+	if (isnan(s->emad) || s->emad > s->min_emad)
 		return 1;
 
 	//if (s->wall < s->min_time)
@@ -548,6 +554,9 @@ sample(const char *cmd)
 
 		add_sample(&s, metric, walltime);
 	}
+
+	/* Always recompute the stats with all samples */
+	stats(&s);
 
 	fprintf(stdout, "\n");
 
