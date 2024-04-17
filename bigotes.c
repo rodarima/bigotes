@@ -18,6 +18,9 @@
 #include <time.h>
 #include <unistd.h>
 
+#define W 70
+#define H 8
+
 static char *progname = "bigotes";
 
 struct sampling {
@@ -26,9 +29,11 @@ struct sampling {
 	long n;
 	double *samples;
 	double rsem;
+	double emad;
 	double last;
 	double wall;
 	double min_rsem;
+	double min_emad;
 	const char *name;
 	double t0;
 	double min_time;
@@ -170,76 +175,77 @@ cmp_double(const void *pa, const void *pb)
 		return 0;
 }
 
-//static void
-//resample(double *values, long n, double *out)
-//{
-//	for (long i = 0; i < n; i++) {
-//		/* FIXME: Not really uniform */
-//		out[i] = values[rand() % n];
-//		//printf("out[%ld] = %e\n", i, out[i]);
-//	}
-//}
-//
-//static double
-//mad_bootstrap(double *values, long n)
-//{
-//	long m = 1000;
-//
-//	double *r = calloc(n, sizeof(double));
-//	if (r == NULL) {
-//		perror("calloc failed");
-//		exit(1);
-//	}
-//
-//	double *absdev = calloc(n, sizeof(double));
-//	if (absdev == NULL) {
-//		perror("calloc failed");
-//		exit(1);
-//	}
-//
-//	double *mad = calloc(m, sizeof(double));
-//	if (mad == NULL) {
-//		perror("calloc failed");
-//		exit(1);
-//	}
-//
-//	for (long sample = 0; sample < m; sample++) {
-//		resample(values, n, r);
-//
-//		qsort(r, n, sizeof(double), cmp_double);
-//		double median = r[n / 2];
-//
-//		for (long i = 0; i < n; i++) {
-//			absdev[i] = fabs(r[i] - median);
-//		}
-//
-//		qsort(absdev, n, sizeof(double), cmp_double);
-//		mad[sample] = absdev[n / 2];
-//		//printf("mad[%ld] = %e\n", sample, mad[sample]);
-//	}
-//
-//	double sum = 0.0;
-//	for (long i = 0; i < m; i++)
-//		sum += mad[i];
-//
-//	double mean = sum / (double) m;
-//	double sumsqr = 0.0;
-//	for (long i = 0; i < m; i++) {
-//		double dev = mad[i] - mean;
-//		sumsqr += dev * dev;
-//	}
-//
-//	double var = sumsqr / m;
-//	double stdev = sqrt(var);
-//	double sem = stdev / sqrt(m);
-//	double rsem = 100.0 * sem * 1.96 / mean;
-//
-//	free(mad);
-//	free(absdev);
-//	free(r);
-//
-//	return rsem;
-//}
+static void
+resample(double *values, long n, double *out)
+{
+	for (long i = 0; i < n; i++) {
+		/* FIXME: Not really uniform */
+		out[i] = values[rand() % n];
+		//printf("out[%ld] = %e\n", i, out[i]);
+	}
+}
+
+static double
+mad_bootstrap(double *values, long n)
+{
+	long m = 200;
+
+	double *r = calloc(n, sizeof(double));
+	if (r == NULL) {
+		perror("calloc failed");
+		exit(1);
+	}
+
+	double *absdev = calloc(n, sizeof(double));
+	if (absdev == NULL) {
+		perror("calloc failed");
+		exit(1);
+	}
+
+	double *mad = calloc(m, sizeof(double));
+	if (mad == NULL) {
+		perror("calloc failed");
+		exit(1);
+	}
+
+	for (long sample = 0; sample < m; sample++) {
+		resample(values, n, r);
+
+		qsort(r, n, sizeof(double), cmp_double);
+		double median = r[n / 2];
+
+		for (long i = 0; i < n; i++) {
+			absdev[i] = fabs(r[i] - median);
+		}
+
+		qsort(absdev, n, sizeof(double), cmp_double);
+		mad[sample] = absdev[n / 2];
+		//mad[sample] = median;
+		//printf("mad[%ld] = %e\n", sample, mad[sample]);
+	}
+
+	double sum = 0.0;
+	for (long i = 0; i < m; i++)
+		sum += mad[i];
+
+	double mean = sum / (double) m;
+	double sumsqr = 0.0;
+	for (long i = 0; i < m; i++) {
+		double dev = mad[i] - mean;
+		sumsqr += dev * dev;
+	}
+
+	double var = sumsqr / m;
+	double stdev = sqrt(var);
+	double sem = stdev / sqrt(m);
+	double rsem = 100.0 * sem * 1.96 / mean;
+
+	free(mad);
+	free(absdev);
+	free(r);
+
+	return rsem;
+}
 
 static void
 stats(struct sampling *s)
@@ -253,17 +259,26 @@ stats(struct sampling *s)
 	double mean = last;
 	double var = NAN;
 	double stdev = NAN;
-	double rstdev = NAN;
+	//double rstdev = NAN;
 	double sem = NAN;
 	double rsem = NAN;
 	double mad = NAN;
-	//double mad_se = NAN;
+	double rsemad = NAN;
 	double q1 = NAN;
 	double q3 = NAN;
 	double iqr = NAN;
 	double pol = NAN;
 	double smin = s->samples[s->n - 1];
 	double smax = s->samples[s->n - 1];
+
+#define NMAD 10
+	static double oldmad[NMAD];
+
+	if (s->n == 1) {
+		for (int i = 0; i < NMAD; i++) {
+			oldmad[i] = NAN;
+		}
+	}
 
 	/* Need at least two samples */
 	if (s->n >= 2) {
@@ -298,22 +313,29 @@ stats(struct sampling *s)
 			sumsqr += dev * dev;
 			absdev[i] = fabs(s->samples[i] - median);
 			//printf("absdev[%3ld] = %e\n", i, absdev[i]);
-			if (x < q1 - 1.5 * iqr || x > q3 + iqr * 1.5)
+			if (x < q1 - 3.0 * iqr || x > q3 + iqr * 3.0)
 				outliers++;
 		}
 		qsort(absdev, s->n, sizeof(double), cmp_double);
 		mad = absdev[s->n / 2] * 1.4826;
-		//mad_se = mad_bootstrap(s->samples, s->n);
+		rsemad = mad_bootstrap(s->samples, s->n);
 		pol = (double) outliers * 100.0 / n;
 
 		var = sumsqr / n;
 		stdev = sqrt(var);
-		rstdev = 100.0 * stdev / mean;
+		//rstdev = 100.0 * stdev / mean;
 		sem = stdev / sqrt(n);
 		rsem = 100.0 * sem * 1.96 / mean;
 		s->rsem = rsem;
 		free(absdev);
 	}
+
+	double madsum = rsemad;
+	for (int i = 0; i < NMAD; i++)
+		madsum += oldmad[i];
+	double emad = madsum / (NMAD + 1.0);
+	s->emad = emad;
+	double rmad = 100.0 * mad / median;
 
 	/* Print the header at the beginning only */
 	if (s->n == 1) {
@@ -329,13 +351,11 @@ stats(struct sampling *s)
 		//printf("# %%RSEM  Relative standard error of the mean\n");
 		printf("%4s  %5s"
 				"  %8s  %8s  %8s  %8s  %8s"
-				"  %8s  %8s  %8s"
-				"  %5s  %5s"
+				"  %8s  %5s  %5s"
 				"  %5s\n",
 				"RUN", "WALL",
 				"MIN", "Q1", "MEDIAN", "Q3", "MAX",
-				"MAD", "IQR", "SD",
-				"%RSD", "%RSEM",
+				"MAD", "%MAD", "%EMAD",
 				"%OUTLIERS");
 	}
 //RUN   WALL       LAST     MEDIAN        AVG         SD   %RSD   %RSEM
@@ -345,16 +365,18 @@ stats(struct sampling *s)
 	printf(
 			"\r%4ld  %5.1f"
 			"  %8.2e  %8.2e  %8.2e  %8.2e  %8.2e"
-			"  %8.2e  %8.2e  %8.2e"
-			"  %5.2f  %5.2f"
+			"  %8.2e  %5.2f  %5.2f"
 			"  %5.1f ",
 			s->n, s->wall,			/* progress */
 			smin, q1, median, q3, smax,	/* centrality */
-			mad, iqr, stdev,		/* dispersion */
-			rstdev, rsem,			/* rel. dispersion */
+			mad, rmad, emad,		/* rel. dispersion */
 			pol				/* outliers */
 		);
 	fflush(stdout);
+
+	for (int i = 1; i < NMAD; i++)
+		oldmad[i - 1] = oldmad[i];
+	oldmad[NMAD - 1] = rsemad;
 }
 
 static int
@@ -365,12 +387,14 @@ should_continue(struct sampling *s)
 	if (s->n < s->nmin)
 		return 1;
 
-	if (s->rsem > s->min_rsem)
+	//if (s->rsem > s->min_rsem)
+	//	return 1;
+
+	if (s->emad > s->min_emad)
 		return 1;
 
-	double dt = get_time() - s->t0;
-	if (dt < s->min_time)
-		return 1;
+	//if (s->wall < s->min_time)
+	//	return 1;
 
 	return 0;
 }
@@ -397,13 +421,113 @@ add_sample(struct sampling *s, double metric, double walltime)
 	fclose(f);
 }
 
+static void
+compute_histogram(struct sampling *s, int nbins, long *count, int ignore_outliers)
+{
+	qsort(s->samples, s->n, sizeof(double), cmp_double);
+
+	double q1 = s->samples[s->n / 4];
+	double q3 = s->samples[(s->n * 3) / 4];
+	double qmin;
+	double qmax;
+
+	if (ignore_outliers) {
+		/* Use the whiskers for ranges */
+		double iqr = q3 - q1;
+		double k = 3.0;
+		qmin = q1 - k * iqr;
+		qmax = q3 + k * iqr;
+	} else {
+		qmin = s->samples[0];
+		qmax = s->samples[s->n - 1];
+	}
+
+	double binlen = (qmax - qmin) / (double) nbins;
+
+	long j = 0;
+
+	for (int i = 0; i < nbins; i++) {
+		double binstart = qmin + (double) (i + 0) * binlen;
+		double binend   = qmin + (double) (i + 1) * binlen;
+		count[i] = 0;
+
+		for (; j < s->n; j++) {
+			double x = s->samples[j];
+			if (x < binstart) {
+				/* Left out */
+				continue;
+			}
+
+			if (x > binend) {
+				/* Switch bin */
+				break;
+			}
+
+			/* Fits this bin */
+			count[i]++;
+		}
+	}
+}
+
+static void
+plot_histogram(struct sampling *s, int ignore_outliers)
+{
+	long count[W];
+
+
+	compute_histogram(s, W, count, ignore_outliers);
+
+	long maxcount = 0;
+	for (int i = 0; i < W; i++) {
+		if (count[i] > maxcount)
+			maxcount = count[i];
+	}
+
+	double barlen[W];
+	for (int i = 0; i < W; i++) {
+		double rel = (double) count[i] / (double) maxcount;
+		barlen[i] = (double) H * rel;
+	}
+
+	char screen[H][W];
+	memset(screen, ' ', sizeof(screen));
+
+	for (int i = 0; i < H; i++) {
+		for (int j = 0; j < W; j++) {
+			if (i < barlen[j]) {
+				screen[H - i - 1][j] = '#';
+			} else if (i == 0) {
+				screen[H - i - 1][j] = '_';
+			}
+		}
+	}
+
+	for (int i = 0; i < H; i++) {
+		putc(' ', stdout);
+		for (int j = 0; j < W; j++) {
+			putc(screen[i][j], stdout);
+		}
+		putc('\n', stdout);
+	}
+}
+
+//static void
+//hrule(void)
+//{
+//	for (int j = 0; j < W; j++)
+//		putc('-', stdout);
+//
+//	putc('\n', stdout);
+//}
+
 static int
 sample(char *argv[])
 {
 	struct sampling s = { 0 };
 	s.nmax = 4000;
-	s.nmin = 50;
+	s.nmin = 100;
 	s.min_rsem = 0.5;
+	s.min_emad = 1.0;
 	s.min_time = 60.0; /* At least one minute */
 	s.samples = calloc(s.nmax, sizeof(double));
 	s.n = 0;
@@ -431,6 +555,11 @@ sample(char *argv[])
 	}
 
 	fprintf(stdout, "\n");
+
+	printf("\n");
+	plot_histogram(&s, 0);
+	//plot_histogram(&s, 1);
+	//printf("\n");
 
 	free(s.samples);
 
