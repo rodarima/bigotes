@@ -411,25 +411,12 @@ add_sample(struct sampling *s, double metric, double walltime)
 }
 
 static void
-compute_histogram(struct sampling *s, int nbins, long *count, int ignore_outliers)
+compute_histogram(struct sampling *s, int nbins, long *count)
 {
 	qsort(s->samples, s->n, sizeof(double), cmp_double);
 
-	double q1 = s->samples[s->n / 4];
-	double q3 = s->samples[(s->n * 3) / 4];
-	double qmin;
-	double qmax;
-
-	if (ignore_outliers) {
-		/* Use the whiskers for ranges */
-		double iqr = q3 - q1;
-		double k = 3.0;
-		qmin = q1 - k * iqr;
-		qmax = q3 + k * iqr;
-	} else {
-		qmin = s->samples[0];
-		qmax = s->samples[s->n - 1];
-	}
+	double qmin = s->samples[0];
+	double qmax = s->samples[s->n - 1];
 
 	double binlen = (qmax - qmin) / (double) nbins;
 
@@ -459,11 +446,11 @@ compute_histogram(struct sampling *s, int nbins, long *count, int ignore_outlier
 }
 
 static void
-plot_histogram(struct sampling *s, int w, int h, int ignore_outliers)
+plot_histogram(struct sampling *s, int w, int h)
 {
 	long *count = safe_calloc(w, sizeof(long));
 
-	compute_histogram(s, w, count, ignore_outliers);
+	compute_histogram(s, w, count);
 
 	long maxcount = 0;
 	for (int i = 0; i < w; i++) {
@@ -528,7 +515,7 @@ sample(char *argv[])
 	fprintf(stdout, "\n");
 
 	printf("\n");
-	plot_histogram(&s, 70, 8, 0);
+	plot_histogram(&s, 70, 8);
 
 	free(s.samples);
 
