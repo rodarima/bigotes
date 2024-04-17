@@ -491,15 +491,6 @@ plot_histogram(struct sampling *s, int w, int h, int ignore_outliers)
 	}
 }
 
-//static void
-//hrule(void)
-//{
-//	for (int j = 0; j < W; j++)
-//		putc('-', stdout);
-//
-//	putc('\n', stdout);
-//}
-
 static int
 sample(char *argv[])
 {
