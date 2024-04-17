@@ -73,19 +73,19 @@ verr(const char *prefix, const char *func, const char *errstr, ...)
 	va_end(ap);
 }
 
-//static void
-//vdie(const char *prefix, const char *func, const char *errstr, ...)
-//{
-//	va_list ap;
-//	va_start(ap, errstr);
-//	vaerr(prefix, func, errstr, ap);
-//	va_end(ap);
-//	abort();
-//}
+static void
+vdie(const char *prefix, const char *func, const char *errstr, ...)
+{
+	va_list ap;
+	va_start(ap, errstr);
+	vaerr(prefix, func, errstr, ap);
+	va_end(ap);
+	abort();
+}
 
 #define rerr(...) fprintf(stderr, __VA_ARGS__)
 #define err(...)  verr("ERROR", __func__, __VA_ARGS__)
-//#define die(...)  vdie("FATAL", __func__, __VA_ARGS__)
+#define die(...)  vdie("FATAL", __func__, __VA_ARGS__)
 #define info(...) verr("INFO", NULL, __VA_ARGS__)
 #define finfo(...) verr("INFO", __func__, __VA_ARGS__)
 #define warn(...) verr("WARN", NULL, __VA_ARGS__)
@@ -104,6 +104,16 @@ verr(const char *prefix, const char *func, const char *errstr, ...)
 #define USE_RET __attribute__((warn_unused_result))
 
 #define ARRAYLEN(x) (sizeof(x)/sizeof((x)[0]))
+
+static void *
+safe_calloc(size_t nmemb, size_t size)
+{
+	void *p = calloc(nmemb, size);
+	if (p == NULL)
+		die("calloc failed:");
+
+	return p;
+}
 
 /* Returns the current time in seconds since some point in the past */
 static double
@@ -190,23 +200,9 @@ mad_bootstrap(double *values, long n)
 {
 	long m = 200;
 
-	double *r = calloc(n, sizeof(double));
-	if (r == NULL) {
-		perror("calloc failed");
-		exit(1);
-	}
-
-	double *absdev = calloc(n, sizeof(double));
-	if (absdev == NULL) {
-		perror("calloc failed");
-		exit(1);
-	}
-
-	double *mad = calloc(m, sizeof(double));
-	if (mad == NULL) {
-		perror("calloc failed");
-		exit(1);
-	}
+	double *r = safe_calloc(n, sizeof(double));
+	double *absdev = safe_calloc(n, sizeof(double));
+	double *mad = safe_calloc(m, sizeof(double));
 
 	for (long sample = 0; sample < m; sample++) {
 		resample(values, n, r);
@@ -285,11 +281,7 @@ stats(struct sampling *s)
 		/* Sort samples to take the median */
 		qsort(s->samples, s->n, sizeof(double), cmp_double);
 
-		double *absdev = calloc(s->n, sizeof(double));
-		if (absdev == NULL) {
-			perror("calloc failed");
-			exit(1);
-		}
+		double *absdev = safe_calloc(s->n, sizeof(double));
 
 		smin   = s->samples[0];
 		q1     = s->samples[s->n / 4];
@@ -529,7 +521,7 @@ sample(char *argv[])
 	s.min_rsem = 0.5;
 	s.min_emad = 1.0;
 	s.min_time = 60.0; /* At least one minute */
-	s.samples = calloc(s.nmax, sizeof(double));
+	s.samples = safe_calloc(s.nmax, sizeof(double));
 	s.n = 0;
 	s.name = argv[0];
 	s.t0 = get_time();
