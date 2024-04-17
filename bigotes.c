@@ -303,7 +303,8 @@ stats(struct sampling *s)
 				outliers++;
 		}
 		qsort(absdev, s->n, sizeof(double), cmp_double);
-		mad = absdev[s->n / 2] * 1.4826;
+		//mad = absdev[s->n / 2] * 1.4826;
+		mad = absdev[s->n / 2];
 		//rsemad = mad_bootstrap(s->samples, s->n);
 		//pol = (double) outliers * 100.0 / n;
 
