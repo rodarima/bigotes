@@ -6,12 +6,7 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <stdlib.h>
-#include <stdlib.h>
-#include <string.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -19,6 +14,7 @@
 #include <unistd.h>
 
 static char *progname = "bigotes";
+static int read_from_stdin = 0;
 
 struct sampling {
 	long nmax;
@@ -128,10 +124,10 @@ get_time(void)
 }
 
 static int
-do_run(char *argv[], double *ptime)
+do_run(const char *cmd, double *ptime)
 {
 	int ret = 0;
-	FILE *p = popen(argv[0], "r");
+	FILE *p = popen(cmd, "r");
 
 	if (p == NULL) {
 		err("popen failed:");
@@ -478,8 +474,36 @@ plot_histogram(struct sampling *s, int w, int h)
 	}
 }
 
+
+/* Return -1 on error, 0 on success */
 static int
-sample(char *argv[])
+do_read(FILE *f, double *metric, int *end)
+{
+	char line[4096];
+	if (fgets(line, 4096, f) == NULL) {
+		if (feof(f)) {
+			*end = 1;
+			return 0;
+		}
+
+		err("missing stdout line");
+		return -1;
+	}
+
+	char *nl = strchr(line, '\n');
+	if (nl != NULL)
+		*nl = '\0';
+
+	if (sscanf(line, "%le", metric) != 1) {
+		err("cannot find number in: %s", line);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+sample(const char *cmd)
 {
 	struct sampling s = { 0 };
 	s.nmax = 4000;
@@ -489,7 +513,7 @@ sample(char *argv[])
 	s.min_time = 60.0; /* At least one minute */
 	s.samples = safe_calloc(s.nmax, sizeof(double));
 	s.n = 0;
-	s.name = argv[0];
+	s.name = cmd;
 	s.t0 = get_time();
 
 	FILE *f = fopen("data.csv", "w");
@@ -500,14 +524,27 @@ sample(char *argv[])
 	fclose(f);
 
 	while (should_continue(&s)) {
-		double t0 = get_time();
 		double metric;
-		if (do_run(argv, &metric) != 0) {
-			err("failed to run benchmark");
-			return 1;
+		double walltime = 0.0;
+
+		if (read_from_stdin) {
+			int end = 0;
+			if (do_read(stdin, &metric, &end) != 0) {
+				err("cannot read sample from stdin");
+				return 1;
+			}
+
+			if (end)
+				break;
+		} else {
+			double t0 = get_time();
+			if (do_run(cmd, &metric) != 0) {
+				err("failed to run benchmark");
+				return 1;
+			}
+			double t1 = get_time();
+			walltime = t1 - t0;
 		}
-		double t1 = get_time();
-		double walltime = t1 - t0;
 
 		add_sample(&s, metric, walltime);
 	}
@@ -522,17 +559,40 @@ sample(char *argv[])
 	return 0;
 }
 
+static void
+usage(void)
+{
+	printf("%s command\n", progname);
+	exit(1);
+}
+
 int
 main(int argc, char *argv[])
 {
-	(void) argc;
+	int opt;
+	const char *cmd = "stdin";
 
-	//while (argc && argv && strcmp(argv, "--") != 0) {
-	//	argv++;
-	//	argc--;
-	//}
+	while ((opt = getopt(argc, argv, "hi")) != -1) {
+		switch (opt) {
+			case 'i':
+				read_from_stdin = 1;
+				break;
+			case 'h':
+			default: /* '?' */
+				usage();
+		}
+	}
 
-	if (sample(argv+1) != 0) {
+	if (!read_from_stdin) {
+		if (optind >= argc) {
+			err("bad usage: missing command");
+			usage();
+		} else {
+			cmd = argv[optind];
+		}
+	}
+
+	if (sample(cmd) != 0) {
 		err("failed to sample the benchmark");
 		return 1;
 	}
