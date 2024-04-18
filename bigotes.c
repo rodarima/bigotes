@@ -328,7 +328,7 @@ stats(struct sampling *s)
 	double rmad = 100.0 * mad / median;
 
 	/* Print the header at the beginning only */
-	if (s->n == 1) {
+	if (read_from_stdin || s->n == 1) {
 		//printf("# --- bench6 ---\n");
 		//printf("# Min %ld runs, max %ld\n", s->nmin, s->nmax);
 		//printf("# Cutoff %%RSEM value set to %f\n", s->min_rsem);
@@ -339,7 +339,7 @@ stats(struct sampling *s)
 		//printf("# SD     Standard deviation\n");
 		//printf("# %%RSD   Relative standard deviation to the mean\n");
 		//printf("# %%RSEM  Relative standard error of the mean\n");
-		printf("%4s  %5s"
+		printf("%5s  %5s"
 				"  %8s  %8s  %8s  %8s  %8s"
 				"  %8s  %5s  %5s"
 				"  %5s\n",
@@ -353,10 +353,11 @@ stats(struct sampling *s)
 //RUN    WALL       LAST     MEDIAN        AVG         SD   %RSD  %RSEM
 //  34    3.0  5.110e-03  5.097e-03  5.121e-03  1.327e-04   2.59   0.87
 	printf(
-			"\r%4ld  %5.1f"
+			"%s%5ld  %5.1f"
 			"  %8.2e  %8.2e  %8.2e  %8.2e  %8.2e"
 			"  %8.2e  %5.2f  %5.2f"
 			"  %8ld ",
+			read_from_stdin ? "" : "\r",
 			s->n, s->wall,			/* progress */
 			smin, q1, median, q3, smax,	/* centrality */
 			mad, rmad, s->rsem,		/* rel. dispersion */
@@ -547,7 +548,7 @@ sample(const char *cmd)
 	}
 	fclose(f);
 
-	while (should_continue(&s)) {
+	while (read_from_stdin || should_continue(&s)) {
 		double metric;
 		double walltime = 0.0;
 
