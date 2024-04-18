@@ -452,6 +452,21 @@ compute_histogram(struct sampling *s, int nbins, long *count)
 }
 
 static void
+draw_cell(double q)
+{
+
+	char *utf8[] = { "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"};
+
+	int i = (q * 8.0) - 1;
+	if (i > 7)
+		i = 7;
+	else if (i < 0)
+		i = 0;
+
+	printf("%s", utf8[i]);
+}
+
+static void
 plot_histogram(struct sampling *s, int w, int h)
 {
 	long *count = safe_calloc(w, sizeof(long));
@@ -473,10 +488,9 @@ plot_histogram(struct sampling *s, int w, int h)
 	for (int i = h-1; i >= 0; i--) {
 		putchar(' ');
 		for (int j = 0; j < w; j++) {
-			if (i < barlen[j])
-				putchar('#');
-			else if (i == 0)
-				putchar('_');
+			double cell = barlen[j] - i;
+			if (cell > 0.0)
+				draw_cell(cell);
 			else
 				putchar(' ');
 		}
