@@ -290,20 +290,26 @@ stats(struct sampling *s)
 		iqr = q3 - q1;
 
 		double sum = 0.0;
-		for (long i = 0; i < s->n; i++)
+		long ncorr = 0;
+		for (long i = 0; i < s->n; i++) {
+			double x = s->samples[i];
+			if (x < q1 - 3.0 * iqr || x > q3 + iqr * 3.0)
+				continue;
 			sum += s->samples[i];
+			ncorr++;
+		}
 
-		double n = s->n;
-		mean = sum / n;
+		mean = sum / (double) ncorr;
 		double sumsqr = 0.0;
 		for (long i = 0; i < s->n; i++) {
 			double x = s->samples[i];
 			double dev = x - mean;
-			sumsqr += dev * dev;
 			absdev[i] = fabs(s->samples[i] - median);
 			//printf("absdev[%3ld] = %e\n", i, absdev[i]);
 			if (x < q1 - 3.0 * iqr || x > q3 + iqr * 3.0)
 				outliers++;
+			else
+				sumsqr += dev * dev;
 		}
 		qsort(absdev, s->n, sizeof(double), cmp_double);
 		//mad = absdev[s->n / 2] * 1.4826;
@@ -311,10 +317,10 @@ stats(struct sampling *s)
 		//rsemad = mad_bootstrap(s->samples, s->n);
 		//pol = (double) outliers * 100.0 / n;
 
-		var = sumsqr / n;
+		var = sumsqr / ncorr;
 		stdev = sqrt(var);
 		//rstdev = 100.0 * stdev / mean;
-		sem = stdev / sqrt(n);
+		sem = stdev / sqrt(ncorr);
 		rsem = 100.0 * sem * 1.96 / mean;
 		s->rsem = rsem;
 		free(absdev);
