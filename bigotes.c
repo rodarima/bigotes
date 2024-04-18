@@ -389,8 +389,8 @@ static int
 should_continue(struct sampling *s)
 {
 	double dt = get_time() - s->last_stats;
-	/* Update stats at 30 FPS */
-	if (dt > 1.0 / 30.0)
+	/* Update stats at 10 FPS */
+	if (dt > 1.0 / 10.0)
 		stats(s);
 
 	if (s->n < s->nmin)
@@ -468,7 +468,6 @@ compute_histogram(struct sampling *s, int nbins, long *count)
 static void
 draw_cell(double q)
 {
-
 	char *utf8[] = { "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"};
 
 	int i = (q * 8.0) - 1;
