@@ -393,6 +393,9 @@ should_continue(struct sampling *s)
 	if (dt > 1.0 / 10.0)
 		stats(s);
 
+	if (s->n >= s->nmax)
+		return 0;
+
 	if (s->n < s->nmin)
 		return 1;
 
@@ -543,7 +546,7 @@ static int
 sample(char *argv[])
 {
 	struct sampling s = { 0 };
-	s.nmax = 100000;
+	s.nmax = 5000;
 	s.nmin = 30;
 	s.min_rsem = 1.0;
 	s.min_emad = 1.0;
