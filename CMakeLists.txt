@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023 Barcelona Supercomputing Center (BSC)
+# Copyright (c) 2024 Barcelona Supercomputing Center (BSC)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 cmake_minimum_required(VERSION 3.20)
@@ -59,3 +59,4 @@ endif()
 add_executable(bigotes bigotes.c pnorm.c qnorm.c swilk.c common.c)
 target_link_libraries(bigotes PRIVATE m)
 install(TARGETS bigotes RUNTIME DESTINATION bin)
+install(FILES bigotes.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
