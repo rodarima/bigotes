@@ -9,8 +9,11 @@
 #include <errno.h>
 #include <stdlib.h>
 
-char *progname = NULL;
 int is_debug_enabled = 0;
+
+static char *progname = NULL;
+static int use_prefix = 0;
+static int use_func = 0;
 
 void
 progname_set(char *name)
@@ -36,10 +39,10 @@ vaerr(const char *prefix, const char *func, const char *errstr, va_list ap)
 	if (progname != NULL)
 		fprintf(stderr, "%s: ", progname);
 
-	if (prefix != NULL)
+	if (use_prefix && prefix != NULL)
 		fprintf(stderr, "%s: ", prefix);
 
-	if (func != NULL)
+	if (use_func && func != NULL)
 		fprintf(stderr, "%s: ", func);
 
 	vfprintf(stderr, errstr, ap);
