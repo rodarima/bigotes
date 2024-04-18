@@ -539,7 +539,7 @@ sample(const char *cmd)
 	struct sampling s = { 0 };
 	s.nmax = 100000;
 	s.nmin = 30;
-	s.min_rsem = 2.0;
+	s.min_rsem = 1.0;
 	s.min_emad = 1.0;
 	s.min_time = 30.0;
 	s.samples = safe_calloc(s.nmax, sizeof(double));
