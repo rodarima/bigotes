@@ -12,8 +12,9 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include "swilk.h"
+#include "common.h"
 
-static char *progname = "bigotes";
 static int read_from_stdin = 0;
 static int use_wall_clock = 0;
 
@@ -33,82 +34,6 @@ struct sampling {
 	double min_time;
 	double last_stats;
 };
-
-static void
-vaerr(const char *prefix, const char *func, const char *errstr, va_list ap)
-{
-	if (progname != NULL)
-		fprintf(stderr, "%s: ", progname);
-
-	if (prefix != NULL)
-		fprintf(stderr, "%s: ", prefix);
-
-	if (func != NULL)
-		fprintf(stderr, "%s: ", func);
-
-	vfprintf(stderr, errstr, ap);
-
-	int len = strlen(errstr);
-
-	if (len > 0) {
-		char last = errstr[len - 1];
-		if (last == ':')
-			fprintf(stderr, " %s\n", strerror(errno));
-		else if (last != '\n' && last != '\r')
-			fprintf(stderr, "\n");
-	}
-}
-
-static void
-verr(const char *prefix, const char *func, const char *errstr, ...)
-{
-	va_list ap;
-	va_start(ap, errstr);
-	vaerr(prefix, func, errstr, ap);
-	va_end(ap);
-}
-
-static void
-vdie(const char *prefix, const char *func, const char *errstr, ...)
-{
-	va_list ap;
-	va_start(ap, errstr);
-	vaerr(prefix, func, errstr, ap);
-	va_end(ap);
-	abort();
-}
-
-#define rerr(...) fprintf(stderr, __VA_ARGS__)
-#define err(...)  verr("ERROR", __func__, __VA_ARGS__)
-#define die(...)  vdie("FATAL", __func__, __VA_ARGS__)
-#define info(...) verr("INFO", NULL, __VA_ARGS__)
-#define finfo(...) verr("INFO", __func__, __VA_ARGS__)
-#define warn(...) verr("WARN", NULL, __VA_ARGS__)
-
-#define dbg(...) do { \
-	if (unlikely(is_debug_enabled)) verr("DEBUG", __func__, __VA_ARGS__); \
-} while (0);
-
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#define UNUSED(x) (void)(x)
-
-/* Poison assert */
-#pragma GCC poison assert
-
-#define USE_RET __attribute__((warn_unused_result))
-
-#define ARRAYLEN(x) (sizeof(x)/sizeof((x)[0]))
-
-static void *
-safe_calloc(size_t nmemb, size_t size)
-{
-	void *p = calloc(nmemb, size);
-	if (p == NULL)
-		die("calloc failed:");
-
-	return p;
-}
 
 /* Returns the current time in seconds since some point in the past */
 static double
@@ -180,6 +105,21 @@ cmp_double(const void *pa, const void *pb)
 		return 1;
 	else
 		return 0;
+}
+
+/* Test for normality */
+static void
+shapiro_wilk_test(struct sampling *s)
+{
+	double W, p;
+	if (swilk(s->samples, s->n, &W, &p) != 0) {
+		err("swilk failed");
+		return;
+	}
+
+	const char *msg = (p < 0.05) ? "NOT normal" : "may be normal";
+	printf("Shapiro-Wilk: W=%.2e, p-value=%.2e (%s)\n", W, p, msg);
+
 }
 
 //static void
@@ -590,6 +530,8 @@ sample(const char *cmd)
 	plot_histogram(&s, 70, 8);
 	printf("\n"); /* Leave one empty after histogram */
 
+	shapiro_wilk_test(&s);
+
 	free(s.samples);
 
 	return 0;
@@ -598,13 +540,14 @@ sample(const char *cmd)
 static void
 usage(void)
 {
-	printf("%s command\n", progname);
+	printf("%s command\n", progname_get());
 	exit(1);
 }
 
 int
 main(int argc, char *argv[])
 {
+	progname_set("bigotes");
 	int opt;
 	const char *cmd = "stdin";
 

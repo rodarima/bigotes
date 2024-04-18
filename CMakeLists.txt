@@ -56,6 +56,6 @@ if (NOT HAVE_CLOCK_GETTIME)
   endif()
 endif()
 
-add_executable(bigotes bigotes.c)
+add_executable(bigotes bigotes.c pnorm.c qnorm.c swilk.c common.c)
 target_link_libraries(bigotes PRIVATE m)
 install(TARGETS bigotes RUNTIME DESTINATION bin)
