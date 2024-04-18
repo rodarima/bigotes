@@ -12,11 +12,14 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+
 #include "swilk.h"
 #include "common.h"
 
 static int read_from_stdin = 0;
 static int use_wall_clock = 0;
+static int use_exec = 0;
+static int use_shell = 0;
 
 struct sampling {
 	long nmax;
@@ -50,47 +53,111 @@ get_time(void)
 		(double)tv.tv_nsec * 1.0e-9;
 }
 
-static int
-do_run(const char *cmd, double *ptime)
+static void
+drain(FILE *f)
 {
-	int ret = 0;
-	FILE *p = popen(cmd, "r");
+	char line[4096];
+	while (fgets(line, 4096, f) != NULL)
+		;
+}
+
+static int
+process_stdout(FILE *f, double *metric)
+{
+	if (use_wall_clock) {
+		drain(f);
+		return 0;
+	}
+
+	char line[4096];
+	if (fgets(line, 4096, f) == NULL) {
+		err("missing stdout line");
+		return -1;
+	}
+
+	char *nl = strchr(line, '\n');
+	if (nl != NULL)
+		*nl = '\0';
+
+	if (sscanf(line, "%le", metric) != 1) {
+		err("failed to read metric from stdout");
+		return -1;
+	}
+
+	/* Drain the rest of the stdout */
+	while (fgets(line, 4096, f) != NULL)
+		;
+
+	return 0;
+}
+
+static int
+do_exec(char *argv[], double *metric)
+{
+	int fd[2];
+	const int R = 0, W = 1;
+
+	if (pipe(fd) == -1) {
+		err("pipe failed:");
+		return -1;
+	}
+
+	pid_t pid = fork();
+	if (pid < 0) {
+		err("fork failed:");
+		return -1;
+	} else if (pid > 0) {
+		/* Parent */
+		close(fd[W]);
+		FILE *f = fdopen(fd[R], "r");
+		if (f == NULL) {
+			err("fdopen failed:");
+			return -1;
+		}
+		if (process_stdout(f, metric) != 0)
+			return -1;
+		fclose(f);
+	} else {
+		/* Child */
+		/* Make the stdout go to the pipe */
+		if (dup2(fd[W], STDOUT_FILENO) == -1) {
+			err("dup2 failed:");
+			return -1;
+		}
+		close(fd[W]);
+		close(fd[R]);
+
+		if (execvp(argv[0], argv) != 0) {
+			err("execvp failed:");
+			return -1;
+		}
+
+		/* Not reached */
+		err("execvp unexpected return");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+do_shell(char *argv[], double *metric)
+{
+	FILE *p = popen(argv[0], "r");
 
 	if (p == NULL) {
 		err("popen failed:");
 		return -1;
 	}
 
-	char line[4096];
-	if (!use_wall_clock) {
-		if (fgets(line, 4096, p) == NULL) {
-			err("missing stdout line");
-			ret = -1;
-			goto close_pipe;
-		}
-
-		char *nl = strchr(line, '\n');
-		if (nl != NULL)
-			*nl = '\0';
-
-		/* Clean status line */
-		//fprintf(stderr, "%s\n", line);
-
-		double time;
-		sscanf(line, "%le", &time);
-		//printf("got %e\n", time);
-		*ptime = time;
+	if (process_stdout(p, metric) != 0) {
+		err("process_stdout failed");
+		pclose(p);
+		return -1;
 	}
 
-	/* Drain the rest of the stdout */
-	while (fgets(line, 4096, p) != NULL) {
-		//fprintf(stderr, "%s", line);
-	}
-
-close_pipe:
 	pclose(p);
-
-	return ret;
+	return 0;
 }
 
 static int
@@ -474,7 +541,7 @@ do_read(FILE *f, double *metric, int *end)
 }
 
 static int
-sample(const char *cmd)
+sample(char *argv[])
 {
 	struct sampling s = { 0 };
 	s.nmax = 100000;
@@ -484,7 +551,7 @@ sample(const char *cmd)
 	s.min_time = 30.0;
 	s.samples = safe_calloc(s.nmax, sizeof(double));
 	s.n = 0;
-	s.name = cmd;
+	s.name = argv[0];
 	s.t0 = get_time();
 
 	FILE *f = fopen("data.csv", "w");
@@ -509,9 +576,12 @@ sample(const char *cmd)
 				break;
 		} else {
 			double t0 = get_time();
-			if (do_run(cmd, &metric) != 0) {
-				err("failed to run benchmark");
-				return 1;
+			if (use_exec) {
+				if (do_exec(argv, &metric) != 0)
+					return 1;
+			} else {
+				if (do_shell(argv, &metric) != 0)
+					return 1;
 			}
 			double t1 = get_time();
 			walltime = t1 - t0;
@@ -540,7 +610,11 @@ sample(const char *cmd)
 static void
 usage(void)
 {
-	printf("%s command\n", progname_get());
+	fprintf(stderr, "Usage:\n");
+	fprintf(stderr, "    %s [-w] [--] COMMAND [ARGS...]\n", progname_get());
+	fprintf(stderr, "    %s [-w] -s SCRIPT\n", progname_get());
+	fprintf(stderr, "    %s [-w] -i\n", progname_get());
+	fprintf(stderr, "See the %s(1) manual for more details.\n", progname_get());
 	exit(1);
 }
 
@@ -549,35 +623,45 @@ main(int argc, char *argv[])
 {
 	progname_set("bigotes");
 	int opt;
-	const char *cmd = "stdin";
 
-	while ((opt = getopt(argc, argv, "hiw")) != -1) {
+	while ((opt = getopt(argc, argv, "siwh")) != -1) {
 		switch (opt) {
+			case 's':
+				use_shell = 1;
+				break;
 			case 'i':
 				read_from_stdin = 1;
 				break;
 			case 'w':
 				use_wall_clock = 1;
 				break;
-			case 'h':
 			default: /* '?' */
+				err("unknown option '%c'", opt);
+				/* fall-through */
+			case 'h':
 				usage();
 		}
 	}
 
+	if (use_exec + use_shell + read_from_stdin > 1) {
+		err("bad usage: only one operation mode allowed");
+		usage();
+	}
+
+	if (!use_exec && !use_shell && !read_from_stdin)
+		use_exec = 1;
+
 	if (!read_from_stdin) {
 		if (optind >= argc) {
-			err("bad usage: missing command");
+			err("missing command to run");
 			usage();
 		} else {
-			cmd = argv[optind];
+			argv = &argv[optind];
 		}
 	}
 
-	if (sample(cmd) != 0) {
-		err("failed to sample the benchmark");
+	if (sample(argv) != 0)
 		return 1;
-	}
 
 	return 0;
 }
