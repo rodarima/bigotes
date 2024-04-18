@@ -1,6 +1,6 @@
 # Bigotes: Versatile benchmark tool
 
-The bigotes program is a versatile tool runs to perform automatic benchmark
+The bigotes program is a versatile tool designed to perform automatic benchmark
 measurements and report statistical information. A single quantity is sampled
 multiple times by either running again a given program or by reading the values
 from the standard input. The typical quantity is the execution time, but others
@@ -9,6 +9,13 @@ can be used too.
 The execution of the program is repeated until at least 30 samples are
 collected, 30 seconds have elapsed and the Standard Error of the Mean (SEM) is
 small. All those criteria must be met to stop collecting samples.
+
+At the end, a summary is shown with the number of samples collected
+(RUN), the execution time (WALL), the five-number summary (MIN, Q1,
+MEDIAN, Q3, MAX), the median average deviation (MAD), the relative MAD
+to the median (%MAD) and the relative standard error of the mean (%SEM).
+An histogram is plotted by using UTF-8 block characters and the results
+of the Shapiro-Wilk test for normality.
 
 See the bigotes(1) manual page for more details.
 
