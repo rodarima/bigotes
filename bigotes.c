@@ -534,7 +534,7 @@ sample(const char *cmd)
 	s.nmin = 30;
 	s.min_rsem = 2.0;
 	s.min_emad = 1.0;
-	s.min_time = 10.0;
+	s.min_time = 30.0;
 	s.samples = safe_calloc(s.nmax, sizeof(double));
 	s.n = 0;
 	s.name = cmd;
