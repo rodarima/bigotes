@@ -22,6 +22,7 @@ static int read_from_stdin = 0;
 static int use_wall_clock = 0;
 static int use_exec = 0;
 static int use_shell = 0;
+static int be_quiet = 0;
 static const char *output_fname = "bigotes.csv";
 
 struct sampling {
@@ -188,7 +189,7 @@ shapiro_wilk_test(struct sampling *s)
 	}
 
 	const char *msg = (p < 0.05) ? "NOT normal" : "may be normal";
-	printf("Shapiro-Wilk: W=%.2e, p-value=%.2e (%s)\n", W, p, msg);
+	printf("    Shapiro-Wilk: W=%.2e, p-value=%.2e (%s)\n", W, p, msg);
 
 }
 
@@ -203,8 +204,8 @@ dip_test(struct sampling *s)
 		return;
 	}
 
-	const char *msg = (p < 0.05) ? "multimodal" : "may be unimodal";
-	printf("Dip test:     D=%.2e, p-value=%.2e (%s)\n", D, p, msg);
+	const char *msg = (p < 0.05) ? "NOT unimodal" : "may be unimodal";
+	printf("    Dip test:     D=%.2e, p-value=%.2e (%s)\n", D, p, msg);
 }
 
 
@@ -396,10 +397,11 @@ stats(struct sampling *s)
 //			outliers			/* outliers */
 //		);
 
-	printf("\rn=%ld t=%.1fs median=%.2e rmad=%.2f%% rsem=%.2f%% far=%ld    ",
-			s->n, s->wall, median, rmad, s->rsem, outliers);
-
-	fflush(stdout);
+	if (!be_quiet) {
+		fprintf(stderr, "\rn=%ld t=%.1fs median=%.2e rmad=%.2f%% rsem=%.2f%% far=%ld    ",
+				s->n, s->wall, median, rmad, s->rsem, outliers);
+		fflush(stderr);
+	}
 
 	for (int i = 1; i < NMAD; i++)
 		oldmad[i - 1] = oldmad[i];
@@ -651,18 +653,20 @@ sample(char *argv[])
 	}
 
 	/* Always recompute the stats with all samples */
-	if (!read_from_stdin) {
-		printf("                                                       \r"); /* Clear stat line */
+	if (!read_from_stdin && !be_quiet) {
+		/* Clear stat line */
+		fprintf(stderr, "\r                                                            ");
+		fflush(stderr);
 	}
 
+	printf("\n");
 	print_summary(&s);
-
-	printf("\n"); /* Leave one empty before histogram */
-	plot_histogram(&s, 63, 8);
-	printf("\n"); /* Leave one empty after histogram */
-
+	printf("\n");
 	shapiro_wilk_test(&s);
 	dip_test(&s);
+	printf("\n"); /* Leave one empty before histogram */
+	plot_histogram(&s, 64, 8);
+	printf("\n"); /* Leave one empty after histogram */
 
 	free(s.samples);
 
@@ -686,7 +690,7 @@ main(int argc, char *argv[])
 	progname_set("bigotes");
 	int opt;
 
-	while ((opt = getopt(argc, argv, "siwo:h")) != -1) {
+	while ((opt = getopt(argc, argv, "siwo:qh")) != -1) {
 		switch (opt) {
 			case 's':
 				use_shell = 1;
@@ -699,6 +703,9 @@ main(int argc, char *argv[])
 				break;
 			case 'o':
 				output_fname = optarg;
+				break;
+			case 'q':
+				be_quiet = 1;
 				break;
 			default: /* '?' */
 				err("unknown option '%c'", opt);
