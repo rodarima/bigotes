@@ -678,7 +678,7 @@ do_sample(char *argv[])
 	/* Always recompute the stats with all samples */
 	if (!read_from_stdin && !be_quiet) {
 		/* Clear stat line */
-		fprintf(stderr, "\r                                                            ");
+		fprintf(stderr, "\r                                                            \r");
 		fflush(stderr);
 	}
 
