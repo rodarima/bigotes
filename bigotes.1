@@ -6,14 +6,15 @@
 .Nd benchmark measurement tool
 .Sh SYNOPSIS
 .Nm bigotes
-.Op Fl w
+.Op Ar options
 .Op Fl -
 .Ar command
 .Op Ar args...
 .Nm bigotes
-.Op Fl w
+.Op Ar options
 .Fl s Ar script
 .Nm bigotes
+.Op Ar options
 .Fl i
 .Sh DESCRIPTION
 The
@@ -63,12 +64,16 @@ The
 .Ar options
 must precede the operation mode and are as follows:
 .Bl -tag -width Ds
+.It Fl o Ar file
+Write the measured quantities in the given
+.Ar file ,
+one per line. Not compatible with the stdin mode.
+.It Fl q
+Be quiet, don't report progress information during execution.
 .It Fl w
 Instead of reading the quantity from the standard output, use the
 wall clock time (in seconds) that the program took to run. Not
 compatible with the stdin mode.
-.It Fl o Ar filename
-Write the measured quantities in the given file, one per line.
 .El
 .Pp
 The name
