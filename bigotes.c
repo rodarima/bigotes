@@ -429,8 +429,8 @@ should_continue(struct sampling *s)
 	if (s->n < s->nmin)
 		return 1;
 
-	if (isnan(s->rsem) || s->rsem > s->min_rsem)
-		return 1;
+//	if (isnan(s->rsem) || s->rsem > s->min_rsem)
+//		return 1;
 
 //	if (isnan(s->emad) || s->emad > s->min_emad)
 //		return 1;
