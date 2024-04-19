@@ -27,7 +27,7 @@ void vdie(const char *prefix, const char *func, const char *errstr, ...);
 
 #define dbg(...) do { \
 	if (unlikely(is_debug_enabled)) verr("DEBUG", __func__, __VA_ARGS__); \
-} while (0);
+} while (0)
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)

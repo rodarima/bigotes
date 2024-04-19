@@ -14,12 +14,15 @@
 #include <unistd.h>
 
 #include "swilk.h"
+#include "dip.h"
+#include "stats.h"
 #include "common.h"
 
 static int read_from_stdin = 0;
 static int use_wall_clock = 0;
 static int use_exec = 0;
 static int use_shell = 0;
+static const char *output_fname = "bigotes.csv";
 
 struct sampling {
 	long nmax;
@@ -189,6 +192,22 @@ shapiro_wilk_test(struct sampling *s)
 
 }
 
+/* Test for multimodality */
+static void
+dip_test(struct sampling *s)
+{
+	double D, p;
+
+	if (dip(s->samples, s->n, &D, &p) != 0) {
+		err("diptest failed");
+		return;
+	}
+
+	const char *msg = (p < 0.05) ? "multimodal" : "may be unimodal";
+	printf("Dip test:     D=%.2e, p-value=%.2e (%s)\n", D, p, msg);
+}
+
+
 //static void
 //resample(double *values, long n, double *out)
 //{
@@ -268,8 +287,8 @@ stats(struct sampling *s)
 	double q3 = NAN;
 	double iqr = NAN;
 	//double pol = NAN;
-	double smin = s->samples[s->n - 1];
-	double smax = s->samples[s->n - 1];
+	//double smin = s->samples[s->n - 1];
+	//double smax = s->samples[s->n - 1];
 
 #define NMAD 10
 	static double oldmad[NMAD];
@@ -287,11 +306,11 @@ stats(struct sampling *s)
 
 		double *absdev = safe_calloc(s->n, sizeof(double));
 
-		smin   = s->samples[0];
+		//smin   = s->samples[0];
 		q1     = s->samples[s->n / 4];
 		median = s->samples[s->n / 2];
 		q3     = s->samples[(s->n * 3) / 4];
-		smax   = s->samples[s->n - 1];
+		//smax   = s->samples[s->n - 1];
 
 		//qcd = (q3 - q1) / (q3 + q1);
 		iqr = q3 - q1;
@@ -341,41 +360,45 @@ stats(struct sampling *s)
 	double rmad = 100.0 * mad / median;
 
 	/* Print the header at the beginning only */
-	if (read_from_stdin || s->n == 1) {
-		//printf("# --- bench6 ---\n");
-		//printf("# Min %ld runs, max %ld\n", s->nmin, s->nmax);
-		//printf("# Cutoff %%RSEM value set to %f\n", s->min_rsem);
-		//printf("# RUN    Number of run\n");
-		//printf("# LAST   Value of last run\n");
-		//printf("# MEDIAN Median of values until now\n");
-		//printf("# AVG    Mean of values until now\n");
-		//printf("# SD     Standard deviation\n");
-		//printf("# %%RSD   Relative standard deviation to the mean\n");
-		//printf("# %%RSEM  Relative standard error of the mean\n");
-		printf("%5s  %5s"
-				"  %8s  %8s  %8s  %8s  %8s"
-				"  %8s  %5s  %5s"
-				"  %5s\n",
-				"RUN", "WALL",
-				"MIN", "Q1", "MEDIAN", "Q3", "MAX",
-				"MAD", "%MAD", "%SEM",
-				"OUTLIERS");
-	}
+//	if (read_from_stdin || s->n == 1) {
+//		//printf("# --- bench6 ---\n");
+//		//printf("# Min %ld runs, max %ld\n", s->nmin, s->nmax);
+//		//printf("# Cutoff %%RSEM value set to %f\n", s->min_rsem);
+//		//printf("# RUN    Number of run\n");
+//		//printf("# LAST   Value of last run\n");
+//		//printf("# MEDIAN Median of values until now\n");
+//		//printf("# AVG    Mean of values until now\n");
+//		//printf("# SD     Standard deviation\n");
+//		//printf("# %%RSD   Relative standard deviation to the mean\n");
+//		//printf("# %%RSEM  Relative standard error of the mean\n");
+//		printf("%5s  %5s"
+//				"  %8s  %8s  %8s  %8s  %8s"
+//				"  %8s  %5s  %5s"
+//				"  %5s\n",
+//				"RUN", "WALL",
+//				"MIN", "Q1", "MEDIAN", "Q3", "MAX",
+//				"MAD", "%MAD", "%SEM",
+//				"OUTLIERS");
+//	}
 //RUN   WALL       LAST     MEDIAN        AVG         SD   %RSD   %RSEM
 // 89  125.5  5.085e-03  5.075e-03  5.303e-03  3.500e-03  66.00   7.611
 //RUN    WALL       LAST     MEDIAN        AVG         SD   %RSD  %RSEM
 //  34    3.0  5.110e-03  5.097e-03  5.121e-03  1.327e-04   2.59   0.87
-	printf(
-			"%s%5ld  %5.1f"
-			"  %8.2e  %8.2e  %8.2e  %8.2e  %8.2e"
-			"  %8.2e  %5.2f  %5.2f"
-			"  %8ld ",
-			read_from_stdin ? "" : "\r",
-			s->n, s->wall,			/* progress */
-			smin, q1, median, q3, smax,	/* centrality */
-			mad, rmad, s->rsem,		/* rel. dispersion */
-			outliers			/* outliers */
-		);
+//	printf(
+//			"%s%5ld  %5.1f"
+//			"  %8.2e  %8.2e  %8.2e  %8.2e  %8.2e"
+//			"  %8.2e  %5.2f  %5.2f"
+//			"  %8ld ",
+//			read_from_stdin ? "" : "\r",
+//			s->n, s->wall,			/* progress */
+//			smin, q1, median, q3, smax,	/* centrality */
+//			mad, rmad, s->rsem,		/* rel. dispersion */
+//			outliers			/* outliers */
+//		);
+
+	printf("\rn=%ld t=%.1fs median=%.2e rmad=%.2f%% rsem=%.2f%% far=%ld    ",
+			s->n, s->wall, median, rmad, s->rsem, outliers);
+
 	fflush(stdout);
 
 	for (int i = 1; i < NMAD; i++)
@@ -424,13 +447,15 @@ add_sample(struct sampling *s, double metric, double walltime)
 	s->last = metric;
 	s->wall += walltime;
 
-	FILE *f = fopen("data.csv", "a");
-	if (f == NULL) {
-		err("fopen failed:");
-		exit(1);
+	if (!read_from_stdin) {
+		FILE *f = fopen(output_fname, "a");
+		if (f == NULL) {
+			err("fopen failed:");
+			exit(1);
+		}
+		fprintf(f, "%e\n", metric);
+		fclose(f);
 	}
-	fprintf(f, "%e\n", metric);
-	fclose(f);
 }
 
 static void
@@ -514,6 +539,35 @@ plot_histogram(struct sampling *s, int w, int h)
 	}
 }
 
+static void
+print_summary(struct sampling *s)
+{
+	qsort(s->samples, s->n, sizeof(double), cmp_double);
+
+	double mean = stats_mean(s->samples, s->n);
+	double stdev = stats_stdev(s->samples, s->n, mean);
+	double skewness = stats_skewness(s->samples, s->n, mean, stdev);
+	double kurtosis = stats_kurtosis(s->samples, s->n, mean, stdev);
+
+	double xmin = stats_percentile(s->samples, s->n, 0.0);
+	double q1 = stats_percentile(s->samples, s->n, 0.25);
+	double median = stats_median(s->samples, s->n);
+	double q3 = stats_percentile(s->samples, s->n, 0.75);
+	double xmax = stats_percentile(s->samples, s->n, 1.0);
+
+	double mad = stats_mad(s->samples, s->n, median);
+	long n = s->n;
+	long outliers = stats_outliers(s->samples, s->n, q1, q3, 3.0);
+
+	printf("%10s %10s %10s %10s %10s %10s\n", "Min", "Q1", "Median", "Mean", "Q3", "Max");
+	printf("% 10.3e % 10.3e % 10.3e % 10.3e % 10.3e % 10.3e \n",
+			xmin, q1, median, mean, q3, xmax);
+
+	printf("%10s %10s %10s %10s %10s %10s\n", "N", "Outliers", "1.48*MAD", "Stdev", "Skewness", "Kurtosis");
+	printf("%10ld %10ld % 10.3e % 10.3e % 10.3e % 10.3e\n",
+			n, outliers, mad, stdev, skewness, kurtosis);
+}
+
 
 /* Return -1 on error, 0 on success */
 static int
@@ -556,12 +610,14 @@ sample(char *argv[])
 	s.name = argv[0];
 	s.t0 = get_time();
 
-	FILE *f = fopen("data.csv", "w");
-	if (f == NULL) {
-		err("fopen failed:");
-		exit(1);
+	if (!read_from_stdin) {
+		FILE *f = fopen(output_fname, "w");
+		if (f == NULL) {
+			err("fopen failed:");
+			exit(1);
+		}
+		fclose(f);
 	}
-	fclose(f);
 
 	while (read_from_stdin || should_continue(&s)) {
 		double metric;
@@ -595,14 +651,18 @@ sample(char *argv[])
 	}
 
 	/* Always recompute the stats with all samples */
-	stats(&s);
-	printf("\n"); /* Finish stat line */
+	if (!read_from_stdin) {
+		printf("                                                       \r"); /* Clear stat line */
+	}
+
+	print_summary(&s);
 
 	printf("\n"); /* Leave one empty before histogram */
-	plot_histogram(&s, 70, 8);
+	plot_histogram(&s, 63, 8);
 	printf("\n"); /* Leave one empty after histogram */
 
 	shapiro_wilk_test(&s);
+	dip_test(&s);
 
 	free(s.samples);
 
@@ -613,9 +673,9 @@ static void
 usage(void)
 {
 	fprintf(stderr, "Usage:\n");
-	fprintf(stderr, "    %s [-w] [--] COMMAND [ARGS...]\n", progname_get());
-	fprintf(stderr, "    %s [-w] -s SCRIPT\n", progname_get());
-	fprintf(stderr, "    %s [-w] -i\n", progname_get());
+	fprintf(stderr, "    %s [options] [--] COMMAND [ARGS...]\n", progname_get());
+	fprintf(stderr, "    %s [options] -s SCRIPT\n", progname_get());
+	fprintf(stderr, "    %s [options] -i\n", progname_get());
 	fprintf(stderr, "See the %s(1) manual for more details.\n", progname_get());
 	exit(1);
 }
@@ -626,7 +686,7 @@ main(int argc, char *argv[])
 	progname_set("bigotes");
 	int opt;
 
-	while ((opt = getopt(argc, argv, "siwh")) != -1) {
+	while ((opt = getopt(argc, argv, "siwo:h")) != -1) {
 		switch (opt) {
 			case 's':
 				use_shell = 1;
@@ -636,6 +696,9 @@ main(int argc, char *argv[])
 				break;
 			case 'w':
 				use_wall_clock = 1;
+				break;
+			case 'o':
+				output_fname = optarg;
 				break;
 			default: /* '?' */
 				err("unknown option '%c'", opt);
