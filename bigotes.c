@@ -24,6 +24,7 @@ static int use_exec = 0;
 static int use_shell = 0;
 static int be_quiet = 0;
 static int trim_outliers = 0;
+static long min_samples = 30;
 static const char *output_fname = "bigotes.csv";
 
 struct sampling {
@@ -624,7 +625,7 @@ do_sample(char *argv[])
 {
 	struct sampling s = { 0 };
 	s.nmax = 5000;
-	s.nmin = 30;
+	s.nmin = min_samples;
 	s.min_rsem = 1.0;
 	s.min_emad = 1.0;
 	s.min_time = 30.0;
@@ -719,7 +720,7 @@ main(int argc, char *argv[])
 	progname_set("bigotes");
 	int opt;
 
-	while ((opt = getopt(argc, argv, "siwo:qhX")) != -1) {
+	while ((opt = getopt(argc, argv, "sin:wo:qhX")) != -1) {
 		switch (opt) {
 			case 's':
 				use_shell = 1;
@@ -735,6 +736,9 @@ main(int argc, char *argv[])
 				break;
 			case 'q':
 				be_quiet = 1;
+				break;
+			case 'n':
+				min_samples = atol(optarg);
 				break;
 			case 'X':
 				trim_outliers = 1;
