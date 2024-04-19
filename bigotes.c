@@ -582,11 +582,13 @@ print_summary(struct sampling *s)
 	long n = s->n;
 	long outliers = stats_outliers(s->samples, s->n, q1, q3, 3.0);
 
-	printf("%10s %10s %10s %10s %10s %10s\n", "Min", "Q1", "Median", "Mean", "Q3", "Max");
+
+	printf("%10s %10s %10s %10s %10s %10s\n",
+			"MIN", "Q1", "MEDIAN", "MEAN", "Q3", "MAX");
 	printf("% 10.3e % 10.3e % 10.3e % 10.3e % 10.3e % 10.3e \n",
 			xmin, q1, median, mean, q3, xmax);
-
-	printf("%10s %10s %10s %10s %10s %10s\n", "N", "Outliers", "1.48*MAD", "Stdev", "Skewness", "Kurtosis");
+	printf("%10s %10s %10s %10s %10s %10s\n",
+			"N", "FAR", "MAD", "STDEV", "SKEW", "KURTOSIS");
 	printf("%10ld %10ld % 10.3e % 10.3e % 10.3e % 10.3e\n",
 			n, outliers, mad, stdev, skewness, kurtosis);
 }
@@ -620,7 +622,7 @@ do_read(FILE *f, double *metric, int *end)
 }
 
 static int
-sample(char *argv[])
+do_sample(char *argv[])
 {
 	struct sampling s = { 0 };
 	s.nmax = 5000;
@@ -683,6 +685,14 @@ sample(char *argv[])
 	printf("\n");
 	print_summary(&s);
 	printf("\n");
+	if (read_from_stdin) {
+		printf("    Read %ld samples from stdin\n",
+				s.n);
+	} else {
+		printf("    Run %ld times for %.1f s: %s\n",
+				s.n, s.wall, s.name);
+	}
+
 	shapiro_wilk_test(&s);
 	//dip_test(&s); /* Disabled for now */
 	printf("\n"); /* Leave one empty before histogram */
@@ -756,7 +766,7 @@ main(int argc, char *argv[])
 		}
 	}
 
-	if (sample(argv) != 0)
+	if (do_sample(argv) != 0)
 		return 1;
 
 	return 0;
