@@ -580,17 +580,15 @@ print_summary(struct sampling *s)
 
 	double mad = stats_mad(s->samples, s->n, median);
 	long n = s->n;
-	long outliers = stats_outliers(s->samples, s->n, q1, q3, 3.0);
-
 
 	printf("%10s %10s %10s %10s %10s %10s\n",
 			"MIN", "Q1", "MEDIAN", "MEAN", "Q3", "MAX");
 	printf("% 10.3e % 10.3e % 10.3e % 10.3e % 10.3e % 10.3e \n",
 			xmin, q1, median, mean, q3, xmax);
 	printf("%10s %10s %10s %10s %10s %10s\n",
-			"N", "FAR", "MAD", "STDEV", "SKEW", "KURTOSIS");
-	printf("%10ld %10ld % 10.3e % 10.3e % 10.3e % 10.3e\n",
-			n, outliers, mad, stdev, skewness, kurtosis);
+			"N", "WALL", "MAD", "STDEV", "SKEW", "KURTOSIS");
+	printf("%10ld %10.1f % 10.3e % 10.3e % 10.3e % 10.3e\n",
+			n, s->wall, mad, stdev, skewness, kurtosis);
 }
 
 
