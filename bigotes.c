@@ -23,6 +23,7 @@ static int use_wall_clock = 0;
 static int use_exec = 0;
 static int use_shell = 0;
 static int be_quiet = 0;
+static int trim_outliers = 0;
 static const char *output_fname = "bigotes.csv";
 
 struct sampling {
@@ -320,9 +321,11 @@ stats(struct sampling *s)
 		long ncorr = 0;
 		for (long i = 0; i < s->n; i++) {
 			double x = s->samples[i];
-			if (x < q1 - 3.0 * iqr || x > q3 + iqr * 3.0)
-				continue;
-			sum += s->samples[i];
+			if (trim_outliers) {
+				if (x < q1 - 3.0 * iqr || x > q3 + iqr * 3.0)
+					continue;
+			}
+			sum += x;
 			ncorr++;
 		}
 
@@ -333,10 +336,12 @@ stats(struct sampling *s)
 			double dev = x - mean;
 			absdev[i] = fabs(s->samples[i] - median);
 			//printf("absdev[%3ld] = %e\n", i, absdev[i]);
-			if (x < q1 - 3.0 * iqr || x > q3 + iqr * 3.0)
+			if (x < q1 - 3.0 * iqr || x > q3 + iqr * 3.0) {
 				outliers++;
-			else
-				sumsqr += dev * dev;
+				if (trim_outliers)
+					continue;
+			}
+			sumsqr += dev * dev;
 		}
 		qsort(absdev, s->n, sizeof(double), cmp_double);
 		//mad = absdev[s->n / 2] * 1.4826;
@@ -461,12 +466,21 @@ add_sample(struct sampling *s, double metric, double walltime)
 }
 
 static void
-compute_histogram(struct sampling *s, int nbins, long *count)
+compute_histogram(struct sampling *s, int nbins, long *count, int cut_outliers)
 {
 	qsort(s->samples, s->n, sizeof(double), cmp_double);
 
-	double qmin = s->samples[0];
-	double qmax = s->samples[s->n - 1];
+	double qmin, qmax;
+	if (cut_outliers) {
+		double q1 = s->samples[s->n / 4];
+		double q3 = s->samples[(s->n * 3) / 4];
+		double iqr = q3 - q1;
+		qmin = q1 - 3.0 * iqr;
+		qmax = q3 + 3.0 * iqr;
+	} else {
+		qmin = s->samples[0];
+		qmax = s->samples[s->n - 1];
+	}
 
 	double binlen = (qmax - qmin) / (double) nbins;
 
@@ -510,11 +524,11 @@ draw_cell(double q)
 }
 
 static void
-plot_histogram(struct sampling *s, int w, int h)
+plot_histogram(struct sampling *s, int w, int h, int cut_outliers)
 {
 	long *count = safe_calloc(w, sizeof(long));
 
-	compute_histogram(s, w, count);
+	compute_histogram(s, w, count, cut_outliers);
 
 	long maxcount = 0;
 	for (int i = 0; i < w; i++) {
@@ -529,13 +543,20 @@ plot_histogram(struct sampling *s, int w, int h)
 	}
 
 	for (int i = h-1; i >= 0; i--) {
-		putchar(' ');
+		if (i == 0 && cut_outliers) {
+			printf("…");
+		} else {
+			putchar(' ');
+		}
 		for (int j = 0; j < w; j++) {
 			double cell = barlen[j] - i;
 			if (cell > 0.0)
 				draw_cell(cell);
 			else
 				putchar(' ');
+		}
+		if (i == 0 && cut_outliers) {
+			printf("…");
 		}
 		putchar('\n');
 	}
@@ -665,7 +686,7 @@ sample(char *argv[])
 	shapiro_wilk_test(&s);
 	dip_test(&s);
 	printf("\n"); /* Leave one empty before histogram */
-	plot_histogram(&s, 64, 8);
+	plot_histogram(&s, 64, 4, trim_outliers);
 	printf("\n"); /* Leave one empty after histogram */
 
 	free(s.samples);
@@ -690,7 +711,7 @@ main(int argc, char *argv[])
 	progname_set("bigotes");
 	int opt;
 
-	while ((opt = getopt(argc, argv, "siwo:qh")) != -1) {
+	while ((opt = getopt(argc, argv, "siwo:qhX")) != -1) {
 		switch (opt) {
 			case 's':
 				use_shell = 1;
@@ -706,6 +727,9 @@ main(int argc, char *argv[])
 				break;
 			case 'q':
 				be_quiet = 1;
+				break;
+			case 'X':
+				trim_outliers = 1;
 				break;
 			default: /* '?' */
 				err("unknown option '%c'", opt);
