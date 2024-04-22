@@ -10,12 +10,9 @@ The execution of the program is repeated until at least 30 samples are
 collected and 30 seconds have elapsed. Both criteria must be met to stop
 collecting samples.
 
-At the end, a summary is shown with the number of samples collected
-(RUN), the execution time (WALL), the five-number summary (MIN, Q1,
-MEDIAN, Q3, MAX), the median average deviation (MAD), the relative MAD
-to the median (%MAD) and the relative standard error of the mean (%SEM).
-An histogram is plotted by using UTF-8 block characters and the results
-of the Shapiro-Wilk test for normality.
+At the end a summary with statistical information is shown along with an
+histogram plotted by using UTF-8 block characters and the results of the
+Shapiro-Wilk test for normality.
 
 See the bigotes(1) manual page for more details.
 
