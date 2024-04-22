@@ -29,12 +29,62 @@ The execution of the program is repeated until at least 30 samples are
 collected and 30 seconds have elapsed. Both criteria must be met to stop
 collecting samples.
 .Pp
-At the end, a summary is shown with the number of samples collected
-(RUN), the execution time (WALL), the five-number summary (MIN, Q1,
-MEDIAN, Q3, MAX), the median average deviation (MAD), the relative MAD
-to the median (%MAD) and the relative standard error of the mean (%SEM).
-An histogram is plotted by using UTF-8 block characters and the results
-of the Shapiro-Wilk test for normality.
+At the end, a summary is presented with several statistics. An histogram
+is also plotted by using UTF-8 block characters and the results of the
+Shapiro-Wilk test for normality:
+.Bd -literal -offset xx
+% bigotes -w -s 'sleep 0.1'
+
+       MIN         Q1     MEDIAN       MEAN         Q3        MAX
+ 1.022e-01  1.067e-01  1.070e-01  1.080e-01  1.106e-01  1.111e-01
+         N       WALL        MAD      STDEV       SKEW   KURTOSIS
+       278       30.0  1.552e-03  2.425e-03 -3.557e-01 -6.176e-01
+
+    Run 278 times for 30.0 s: sleep 0.1
+    Shapiro-Wilk: W=8.23e-01, p-value=3.97e-17 (NOT normal)
+
+                                 █▁                          ▁
+                                 ██                          █▆
+                                 ██▄                        ▃██
+ ▂▁▁▂ ▁  ▁▁ ▁   ▁▁ ▁     ▁    ▁▅▅███▃  ▁              ▁    ▃███▅▁
+
+.Ed
+The list of summary values is described as as follows:
+.Bl -tag -width Ds
+.It Em MIN
+The minimum value of the sample.
+.It Em Q1
+The first quartile (25 percentile) of the sample.
+.It Em MEDIAN
+The median of the sample.
+.It Em MEAN
+The mean of the sample.
+.It Em Q3
+The third quartile (75 percentile) of the sample.
+.It Em MAX
+The maximum value of the sample.
+.It Em N
+The number of samples.
+.It Em WALL
+The total amount of wall clock time the program spent running.
+.It Em FAR
+The number of outlier values that are "far out" as defined by John
+Tukey with k=3. That is, values smaller than Q1-3*(Q3-Q1) or bigger
+than Q3+3*(Q3-Q1).
+.It Em MAD
+The median absolute deviation of the sample, scaled by 1.4826 to match
+the value of the standard deviation in a normal distribution.
+.It Em STDEV
+The standard deviation of the sample.
+.It Em SKEW
+The sample skewness, a measure of the asymmetry of the probability
+distribution about its mean.
+.It Em KURTOSIS
+The sample excess kurtosis (kurtosis minus 3). A value larger than 0
+indicates a fatter tail in the probability distribution when compared to
+a normal distribution, and often occurs in outliers.
+.El
+.Pp
 .Pp
 There are three modes of operation and one must be selected.
 .Bl -tag -width Ds
@@ -166,6 +216,8 @@ distribution using the gsl-randist tool:
  ▁ ▁▁▁▁▁▁▁▁▂▂▃▂▄▄▆████████████████████████████████▆▅▃▄▂▁▁▁▁▁▁▁▁▁▁
 
 .Ed
+
+Notice how the STDEV and MAD values are close.
 
 .Sh SEE ALSO
 .Pp
