@@ -7,8 +7,8 @@ from the standard input. The typical quantity is the execution time, but others
 can be used too.
 
 The execution of the program is repeated until at least 30 samples are
-collected, 30 seconds have elapsed and the Standard Error of the Mean (SEM) is
-small. All those criteria must be met to stop collecting samples.
+collected and 30 seconds have elapsed. Both criteria must be met to stop
+collecting samples.
 
 At the end, a summary is shown with the number of samples collected
 (RUN), the execution time (WALL), the five-number summary (MIN, Q1,
