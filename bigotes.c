@@ -31,10 +31,8 @@ struct sampling {
 	long nmin;
 	long n;
 	double *samples;
-	double rsem;
 	double last;
 	double wall;
-	double min_rsem;
 	const char *name;
 	double t0;
 	double min_time;
@@ -257,7 +255,6 @@ stats(struct sampling *s)
 		stdev = sqrt(var);
 		sem = stdev / sqrt(ncorr);
 		rsem = 100.0 * sem * 1.96 / mean;
-		s->rsem = rsem;
 		free(absdev);
 	}
 
@@ -265,7 +262,7 @@ stats(struct sampling *s)
 
 	if (!be_quiet) {
 		fprintf(stderr, "\rn=%ld t=%.1fs median=%.2e rmad=%.2f%% rsem=%.2f%% far=%ld    ",
-				s->n, s->wall, median, rmad, s->rsem, outliers);
+				s->n, s->wall, median, rmad, rsem, outliers);
 		fflush(stderr);
 	}
 
@@ -285,9 +282,6 @@ should_continue(struct sampling *s)
 
 	if (s->n < s->nmin)
 		return 1;
-
-//	if (isnan(s->rsem) || s->rsem > s->min_rsem)
-//		return 1;
 
 	if (s->wall < s->min_time)
 		return 1;
@@ -479,7 +473,6 @@ do_sample(char *argv[])
 	struct sampling s = { 0 };
 	s.nmax = 5000;
 	s.nmin = min_samples;
-	s.min_rsem = 1.0;
 	s.min_time = 30.0;
 	s.samples = safe_calloc(s.nmax, sizeof(double));
 	s.n = 0;
