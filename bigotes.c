@@ -35,7 +35,6 @@ struct sampling {
 	double last;
 	double wall;
 	double min_rsem;
-	double min_emad;
 	const char *name;
 	double t0;
 	double min_time;
@@ -253,11 +252,9 @@ stats(struct sampling *s)
 		}
 		qsort(absdev, s->n, sizeof(double), cmp_double);
 		mad = absdev[s->n / 2];
-		//pol = (double) outliers * 100.0 / n;
 
 		var = sumsqr / ncorr;
 		stdev = sqrt(var);
-		//rstdev = 100.0 * stdev / mean;
 		sem = stdev / sqrt(ncorr);
 		rsem = 100.0 * sem * 1.96 / mean;
 		s->rsem = rsem;
@@ -290,9 +287,6 @@ should_continue(struct sampling *s)
 		return 1;
 
 //	if (isnan(s->rsem) || s->rsem > s->min_rsem)
-//		return 1;
-
-//	if (isnan(s->emad) || s->emad > s->min_emad)
 //		return 1;
 
 	if (s->wall < s->min_time)
@@ -486,7 +480,6 @@ do_sample(char *argv[])
 	s.nmax = 5000;
 	s.nmin = min_samples;
 	s.min_rsem = 1.0;
-	s.min_emad = 1.0;
 	s.min_time = 30.0;
 	s.samples = safe_calloc(s.nmax, sizeof(double));
 	s.n = 0;
