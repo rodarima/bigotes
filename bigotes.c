@@ -32,7 +32,6 @@ struct sampling {
 	long n;
 	double *samples;
 	double rsem;
-	double emad;
 	double last;
 	double wall;
 	double min_rsem;
@@ -206,26 +205,12 @@ stats(struct sampling *s)
 	double mean = last;
 	double var = NAN;
 	double stdev = NAN;
-	//double rstdev = NAN;
 	double sem = NAN;
 	double rsem = NAN;
 	double mad = NAN;
-	double rsemad = NAN;
 	double q1 = NAN;
 	double q3 = NAN;
 	double iqr = NAN;
-	//double pol = NAN;
-	//double smin = s->samples[s->n - 1];
-	//double smax = s->samples[s->n - 1];
-
-#define NMAD 10
-	static double oldmad[NMAD];
-
-	if (s->n == 1) {
-		for (int i = 0; i < NMAD; i++) {
-			oldmad[i] = NAN;
-		}
-	}
 
 	/* Need at least two samples */
 	if (s->n >= 2) {
@@ -234,13 +219,10 @@ stats(struct sampling *s)
 
 		double *absdev = safe_calloc(s->n, sizeof(double));
 
-		//smin   = s->samples[0];
 		q1     = s->samples[s->n / 4];
 		median = s->samples[s->n / 2];
 		q3     = s->samples[(s->n * 3) / 4];
-		//smax   = s->samples[s->n - 1];
 
-		//qcd = (q3 - q1) / (q3 + q1);
 		iqr = q3 - q1;
 
 		double sum = 0.0;
@@ -282,11 +264,6 @@ stats(struct sampling *s)
 		free(absdev);
 	}
 
-	double madsum = rsemad;
-	for (int i = 0; i < NMAD; i++)
-		madsum += oldmad[i];
-	double emad = madsum / (NMAD + 1.0);
-	s->emad = emad;
 	double rmad = 100.0 * mad / median;
 
 	if (!be_quiet) {
@@ -294,10 +271,6 @@ stats(struct sampling *s)
 				s->n, s->wall, median, rmad, s->rsem, outliers);
 		fflush(stderr);
 	}
-
-	for (int i = 1; i < NMAD; i++)
-		oldmad[i - 1] = oldmad[i];
-	oldmad[NMAD - 1] = rsemad;
 
 	s->last_stats = get_time();
 }
