@@ -21,6 +21,7 @@ static int read_from_stdin = 0;
 static int use_wall_clock = 0;
 static int use_exec = 0;
 static int use_shell = 0;
+static int use_machine_output = 0;
 static int be_quiet = 0;
 static int trim_outliers = 0;
 static long min_samples = 30;
@@ -185,8 +186,13 @@ shapiro_wilk_test(struct sampling *s)
 		return;
 	}
 
-	const char *msg = (p < 0.05) ? "NOT normal" : "may be normal";
-	printf("    Shapiro-Wilk: W=%.2e, p-value=%.2e (%s)\n", W, p, msg);
+	if (use_machine_output) {
+		printf("%-10s %e\n", "sw_pvalue", p);
+		printf("%-10s %d\n", "sw_normal", (p >= 0.05));
+	} else {
+		const char *msg = (p < 0.05) ? "NOT normal" : "may be normal";
+		printf("    Shapiro-Wilk: W=%.2e, p-value=%.2e (%s)\n", W, p, msg);
+	}
 
 }
 
@@ -428,15 +434,34 @@ print_summary(struct sampling *s)
 
 	double mad = stats_mad(s->samples, s->n, median);
 	long n = s->n;
+	long far = stats_outliers(s->samples, s->n, q1, q3, 3.0);
 
-	printf("%10s %10s %10s %10s %10s %10s\n",
-			"MIN", "Q1", "MEDIAN", "MEAN", "Q3", "MAX");
-	printf("% 10.3e % 10.3e % 10.3e % 10.3e % 10.3e % 10.3e \n",
-			xmin, q1, median, mean, q3, xmax);
-	printf("%10s %10s %10s %10s %10s %10s\n",
-			"N", "WALL", "MAD", "STDEV", "SKEW", "KURTOSIS");
-	printf("%10ld %10.1f % 10.3e % 10.3e % 10.3e % 10.3e\n",
-			n, s->wall, mad, stdev, skewness, kurtosis);
+	if (use_machine_output) {
+		printf("%-10s %e\n", "min", xmin);
+		printf("%-10s %e\n", "q1", q1);
+		printf("%-10s %e\n", "median", median);
+		printf("%-10s %e\n", "mean", mean);
+		printf("%-10s %e\n", "q3", q3);
+		printf("%-10s %e\n", "max", xmax);
+		printf("%-10s %ld\n", "samples", n);
+		printf("%-10s %ld\n", "far", far);
+		printf("%-10s %e\n", "wall", s->wall);
+		printf("%-10s %e\n", "mad", mad);
+		printf("%-10s %e\n", "stdev", stdev);
+		printf("%-10s %e\n", "skewness", skewness);
+		printf("%-10s %e\n", "kurtosis", kurtosis);
+	} else {
+		printf("\n");
+		printf("%10s %10s %10s %10s %10s %10s\n",
+				"MIN", "Q1", "MEDIAN", "MEAN", "Q3", "MAX");
+		printf("% 10.3e % 10.3e % 10.3e % 10.3e % 10.3e % 10.3e \n",
+				xmin, q1, median, mean, q3, xmax);
+		printf("%10s %10s %10s %10s %10s %10s\n",
+				"N", "WALL", "MAD", "STDEV", "SKEW", "KURTOSIS");
+		printf("%10ld %10.1f % 10.3e % 10.3e % 10.3e % 10.3e\n",
+				n, s->wall, mad, stdev, skewness, kurtosis);
+		printf("\n");
+	}
 }
 
 
@@ -465,6 +490,27 @@ do_read(FILE *f, double *metric, int *end)
 	}
 
 	return 0;
+}
+
+static void
+print_command(struct sampling *s)
+{
+	if (use_machine_output) {
+		const char *runmode = read_from_stdin ? "stdin" : (
+				use_shell ? "shell" : "exec");
+		printf("%-10s %s\n", "runmode", runmode);
+		if (!read_from_stdin)
+			printf("%-10s %s\n", "command", read_from_stdin ? "" : s->name);
+		return;
+	}
+
+	if (read_from_stdin) {
+		printf("    Read %ld samples from stdin\n",
+				s->n);
+	} else {
+		printf("    Run %ld times for %.1f s: %s\n",
+				s->n, s->wall, s->name);
+	}
 }
 
 static int
@@ -526,21 +572,16 @@ do_sample(char *argv[])
 		fflush(stderr);
 	}
 
-	printf("\n");
 	print_summary(&s);
-	printf("\n");
-	if (read_from_stdin) {
-		printf("    Read %ld samples from stdin\n",
-				s.n);
-	} else {
-		printf("    Run %ld times for %.1f s: %s\n",
-				s.n, s.wall, s.name);
-	}
+	print_command(&s);
 
 	shapiro_wilk_test(&s);
-	printf("\n"); /* Leave one empty before histogram */
-	plot_histogram(&s, 64, 4, trim_outliers);
-	printf("\n"); /* Leave one empty after histogram */
+
+	if (!use_machine_output) {
+		printf("\n"); /* Leave one empty before histogram */
+		plot_histogram(&s, 64, 4, trim_outliers);
+		printf("\n"); /* Leave one empty after histogram */
+	}
 
 	free(s.samples);
 
@@ -564,7 +605,7 @@ main(int argc, char *argv[])
 	progname_set("bigotes");
 	int opt;
 
-	while ((opt = getopt(argc, argv, "sin:wo:qhX")) != -1) {
+	while ((opt = getopt(argc, argv, "simn:wo:qhX")) != -1) {
 		switch (opt) {
 			case 's':
 				use_shell = 1;
@@ -580,6 +621,9 @@ main(int argc, char *argv[])
 				break;
 			case 'q':
 				be_quiet = 1;
+				break;
+			case 'm':
+				use_machine_output = 1;
 				break;
 			case 'n':
 				min_samples = atol(optarg);
