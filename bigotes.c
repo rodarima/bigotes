@@ -289,43 +289,6 @@ stats(struct sampling *s)
 	s->emad = emad;
 	double rmad = 100.0 * mad / median;
 
-	/* Print the header at the beginning only */
-//	if (read_from_stdin || s->n == 1) {
-//		//printf("# --- bench6 ---\n");
-//		//printf("# Min %ld runs, max %ld\n", s->nmin, s->nmax);
-//		//printf("# Cutoff %%RSEM value set to %f\n", s->min_rsem);
-//		//printf("# RUN    Number of run\n");
-//		//printf("# LAST   Value of last run\n");
-//		//printf("# MEDIAN Median of values until now\n");
-//		//printf("# AVG    Mean of values until now\n");
-//		//printf("# SD     Standard deviation\n");
-//		//printf("# %%RSD   Relative standard deviation to the mean\n");
-//		//printf("# %%RSEM  Relative standard error of the mean\n");
-//		printf("%5s  %5s"
-//				"  %8s  %8s  %8s  %8s  %8s"
-//				"  %8s  %5s  %5s"
-//				"  %5s\n",
-//				"RUN", "WALL",
-//				"MIN", "Q1", "MEDIAN", "Q3", "MAX",
-//				"MAD", "%MAD", "%SEM",
-//				"OUTLIERS");
-//	}
-//RUN   WALL       LAST     MEDIAN        AVG         SD   %RSD   %RSEM
-// 89  125.5  5.085e-03  5.075e-03  5.303e-03  3.500e-03  66.00   7.611
-//RUN    WALL       LAST     MEDIAN        AVG         SD   %RSD  %RSEM
-//  34    3.0  5.110e-03  5.097e-03  5.121e-03  1.327e-04   2.59   0.87
-//	printf(
-//			"%s%5ld  %5.1f"
-//			"  %8.2e  %8.2e  %8.2e  %8.2e  %8.2e"
-//			"  %8.2e  %5.2f  %5.2f"
-//			"  %8ld ",
-//			read_from_stdin ? "" : "\r",
-//			s->n, s->wall,			/* progress */
-//			smin, q1, median, q3, smax,	/* centrality */
-//			mad, rmad, s->rsem,		/* rel. dispersion */
-//			outliers			/* outliers */
-//		);
-
 	if (!be_quiet) {
 		fprintf(stderr, "\rn=%ld t=%.1fs median=%.2e rmad=%.2f%% rsem=%.2f%% far=%ld    ",
 				s->n, s->wall, median, rmad, s->rsem, outliers);
