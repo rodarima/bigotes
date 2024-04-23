@@ -14,7 +14,6 @@
 #include <unistd.h>
 
 #include "swilk.h"
-#include "dip.h"
 #include "stats.h"
 #include "common.h"
 
@@ -194,22 +193,6 @@ shapiro_wilk_test(struct sampling *s)
 	printf("    Shapiro-Wilk: W=%.2e, p-value=%.2e (%s)\n", W, p, msg);
 
 }
-
-/* Test for multimodality */
-//static void
-//dip_test(struct sampling *s)
-//{
-//	double D, p;
-//
-//	if (dip(s->samples, s->n, &D, &p) != 0) {
-//		err("diptest failed");
-//		return;
-//	}
-//
-//	const char *msg = (p < 0.05) ? "NOT unimodal" : "may be unimodal";
-//	printf("    Dip test:     D=%.2e, p-value=%.2e (%s)\n", D, p, msg);
-//}
-
 
 //static void
 //resample(double *values, long n, double *out)
@@ -693,7 +676,6 @@ do_sample(char *argv[])
 	}
 
 	shapiro_wilk_test(&s);
-	//dip_test(&s); /* Disabled for now */
 	printf("\n"); /* Leave one empty before histogram */
 	plot_histogram(&s, 64, 4, trim_outliers);
 	printf("\n"); /* Leave one empty after histogram */
