@@ -436,6 +436,12 @@ print_summary(struct sampling *s)
 	long n = s->n;
 	long far = stats_outliers(s->samples, s->n, q1, q3, 3.0);
 
+	double sem = stats_sem(stdev, s->n);
+	double rel_stdev = stats_percent(stdev, mean);
+	double rel_mad = stats_percent(mad, median);
+	double rel_sem = stats_percent(sem * 1.96, mean);
+	double rel_far = stats_percent(far, s->n);
+
 	if (use_machine_output) {
 		printf("%-10s %e\n", "min", xmin);
 		printf("%-10s %e\n", "q1", q1);
@@ -444,22 +450,33 @@ print_summary(struct sampling *s)
 		printf("%-10s %e\n", "q3", q3);
 		printf("%-10s %e\n", "max", xmax);
 		printf("%-10s %ld\n", "samples", n);
-		printf("%-10s %ld\n", "far", far);
 		printf("%-10s %e\n", "wall", s->wall);
 		printf("%-10s %e\n", "mad", mad);
 		printf("%-10s %e\n", "stdev", stdev);
 		printf("%-10s %e\n", "skewness", skewness);
 		printf("%-10s %e\n", "kurtosis", kurtosis);
+		printf("%-10s %ld\n", "far", far);
+		printf("%-10s %e\n", "rfar", rel_far);
+		printf("%-10s %e\n", "rmad", rel_mad);
+		printf("%-10s %e\n", "rstdev", rel_stdev);
+		printf("%-10s %e\n", "sem", sem);
+		printf("%-10s %e\n", "rsem", rel_sem);
 	} else {
 		printf("\n");
 		printf("%10s %10s %10s %10s %10s %10s\n",
 				"MIN", "Q1", "MEDIAN", "MEAN", "Q3", "MAX");
 		printf("% 10.3e % 10.3e % 10.3e % 10.3e % 10.3e % 10.3e \n",
 				xmin, q1, median, mean, q3, xmax);
+		printf("\n");
 		printf("%10s %10s %10s %10s %10s %10s\n",
 				"N", "WALL", "MAD", "STDEV", "SKEW", "KURTOSIS");
 		printf("%10ld %10.1f % 10.3e % 10.3e % 10.3e % 10.3e\n",
 				n, s->wall, mad, stdev, skewness, kurtosis);
+		printf("\n");
+		printf("%10s %10s %10s %10s %10s %10s\n",
+				"FAR", "%FAR", "%MAD", "%STDEV", "SEM", "%SEM");
+		printf("%10ld %10.2f % 10.2f % 10.2f % 10.3e % 10.2f\n",
+				far, rel_far, rel_mad, rel_stdev, sem, rel_sem);
 		printf("\n");
 	}
 }

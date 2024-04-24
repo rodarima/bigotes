@@ -138,3 +138,15 @@ stats_outliers(double *x, long n, double q1, double q3, double k)
 
 	return outliers;
 }
+
+double
+stats_sem(double stdev, long n)
+{
+	return stdev / sqrt((double) n);
+}
+
+double
+stats_percent(double dev, double center)
+{
+	return 100.0 * dev / center;
+}
