@@ -68,10 +68,18 @@ stats_kurtosis(double *x, long n, double mean, double stdev)
 double
 stats_median(double *x, long n)
 {
-	if (n % 2 == 0)
-		return 0.5 * (x[n/2] + x[n/2+1]);
-	else
-		return x[n/2 + 1];
+	if (n <= 0)
+		return NAN;
+
+	if (n % 2 == 0) {
+		/* even, compute average of middle values */
+		long right = n / 2;
+		long left = right - 1;
+		return 0.5 * (x[left] + x[right]);
+	} else {
+		/* odd, just take the middle value */
+		return x[n/2];
+	}
 }
 
 static int
