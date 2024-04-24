@@ -34,7 +34,9 @@ struct sampling {
 	double *samples;
 	double last;
 	double wall;
-	const char *name;
+	char *const *cmd;
+	char *const *argv;
+	int argc;
 	double t0;
 	double min_time;
 	double last_stats;
@@ -94,7 +96,7 @@ process_stdout(FILE *f, double *metric)
 }
 
 static int
-do_exec(char *argv[], double *metric)
+do_exec(char *const argv[], double *metric)
 {
 	int fd[2];
 	const int R = 0, W = 1;
@@ -143,7 +145,7 @@ do_exec(char *argv[], double *metric)
 }
 
 static int
-do_shell(char *argv[], double *metric)
+do_shell(char * const argv[], double *metric)
 {
 	FILE *p = popen(argv[0], "r");
 
@@ -516,22 +518,37 @@ print_command(struct sampling *s)
 		const char *runmode = read_from_stdin ? "stdin" : (
 				use_shell ? "shell" : "exec");
 		printf("%-10s %s\n", "runmode", runmode);
-		if (!read_from_stdin)
-			printf("%-10s %s\n", "command", read_from_stdin ? "" : s->name);
+
+		if (read_from_stdin)
+			return;
+
+		if (use_shell) {
+			printf("%-10s %s\n", "command", s->cmd[0]);
+		} else {
+			printf("%-10s ", "command");
+			for (char *const* p = s->cmd; *p; p++) {
+				printf("%s ", *p);
+			}
+			printf("\n");
+		}
 		return;
 	}
 
 	if (read_from_stdin) {
-		printf("    Read %ld samples from stdin\n",
-				s->n);
+		printf("    Read from stdin\n");
+	} else if (use_shell) {
+		printf("    Shell: %s\n", s->cmd[0]);
 	} else {
-		printf("    Run %ld times for %.1f s: %s\n",
-				s->n, s->wall, s->name);
+		printf("    Exec: ");
+		for (char *const* p = s->cmd; *p; p++) {
+			printf("%s ", *p);
+		}
+		printf("\n");
 	}
 }
 
 static int
-do_sample(char *argv[])
+do_sample(char * const cmd[], char * const argv[], int argc)
 {
 	struct sampling s = { 0 };
 	s.nmax = 5000;
@@ -539,7 +556,9 @@ do_sample(char *argv[])
 	s.min_time = 30.0;
 	s.samples = safe_calloc(s.nmax, sizeof(double));
 	s.n = 0;
-	s.name = argv[0];
+	s.cmd = cmd;
+	s.argv = argv;
+	s.argc = argc;
 	s.t0 = get_time();
 
 	if (!read_from_stdin) {
@@ -567,10 +586,10 @@ do_sample(char *argv[])
 		} else {
 			double t0 = get_time();
 			if (use_exec) {
-				if (do_exec(argv, &metric) != 0)
+				if (do_exec(cmd, &metric) != 0)
 					return 1;
 			} else {
-				if (do_shell(argv, &metric) != 0)
+				if (do_shell(cmd, &metric) != 0)
 					return 1;
 			}
 			double t1 = get_time();
@@ -664,16 +683,17 @@ main(int argc, char *argv[])
 	if (!use_exec && !use_shell && !read_from_stdin)
 		use_exec = 1;
 
+	char * const * cmd = NULL;
 	if (!read_from_stdin) {
 		if (optind >= argc) {
 			err("missing command to run");
 			usage();
 		} else {
-			argv = &argv[optind];
+			cmd = &argv[optind];
 		}
 	}
 
-	if (do_sample(argv) != 0)
+	if (do_sample(cmd, argv, argc) != 0)
 		return 1;
 
 	return 0;
