@@ -19,6 +19,7 @@
 
 static int read_from_stdin = 0;
 static int use_wall_clock = 0;
+static double min_wall_time = 30.0;
 static int use_exec = 0;
 static int use_machine_output = 0;
 static int be_quiet = 0;
@@ -524,7 +525,7 @@ do_sample(char * const cmd[], char * const argv[], int argc)
 	struct sampling s = { 0 };
 	s.nmax = 5000;
 	s.nmin = min_samples;
-	s.min_time = 30.0;
+	s.min_time = min_wall_time;
 	s.samples = safe_calloc(s.nmax, sizeof(double));
 	s.n = 0;
 	s.cmd = cmd;
@@ -606,7 +607,7 @@ main(int argc, char *argv[])
 	progname_set("bigotes");
 	int opt;
 
-	while ((opt = getopt(argc, argv, "imn:wo:qhX")) != -1) {
+	while ((opt = getopt(argc, argv, "imn:wo:qhXt:")) != -1) {
 		switch (opt) {
 			case 'i':
 				read_from_stdin = 1;
@@ -625,6 +626,9 @@ main(int argc, char *argv[])
 				break;
 			case 'n':
 				min_samples = atol(optarg);
+				break;
+			case 't':
+				min_wall_time = atof(optarg);
 				break;
 			case 'X':
 				trim_outliers = 1;
