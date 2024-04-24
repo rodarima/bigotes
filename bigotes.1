@@ -12,9 +12,6 @@
 .Op Ar args...
 .Nm bigotes
 .Op Ar options
-.Fl s Ar script
-.Nm bigotes
-.Op Ar options
 .Fl i
 .Sh DESCRIPTION
 The
@@ -86,7 +83,7 @@ a normal distribution, and often occurs in outliers.
 .El
 .Pp
 .Pp
-There are three modes of operation and one must be selected.
+There are two modes of operation and one must be selected.
 .Bl -tag -width Ds
 .It Fl -
 Selects the
@@ -94,14 +91,6 @@ Selects the
 mode (the default). Runs the command and arguments as-is, without a shell. The 
 .Fl -
 flag may be omitted.
-.It Fl s
-Selects the
-.Em shell
-mode. Runs the
-.Ar script
-in a shell, performing the shell substitution as
-necessary. Allows processing the output with a pipe, but requires
-escaping quotes.
 .It Fl i
 Selects the
 .Em stdin
@@ -182,7 +171,7 @@ written in the standard output as measured quantity:
 Ping a remote host and take the time as the measurement using a pipe
 (note the escaping for the shell):
 .Bd -literal -offset xx
-% bigotes -s "ping -c 1 1.1.1.1 | awk -F/ 'END {print \\$5}'"
+% bigotes sh -c "ping -c 1 1.1.1.1 | awk -F/ 'END {print \\$5}'"
 
        MIN         Q1     MEDIAN       MEAN         Q3        MAX
  1.489e+01  1.864e+01  1.922e+01  1.938e+01  1.969e+01  4.145e+01

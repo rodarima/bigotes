@@ -20,7 +20,6 @@
 static int read_from_stdin = 0;
 static int use_wall_clock = 0;
 static int use_exec = 0;
-static int use_shell = 0;
 static int use_machine_output = 0;
 static int be_quiet = 0;
 static int trim_outliers = 0;
@@ -141,26 +140,6 @@ do_exec(char *const argv[], double *metric)
 		return -1;
 	}
 
-	return 0;
-}
-
-static int
-do_shell(char * const argv[], double *metric)
-{
-	FILE *p = popen(argv[0], "r");
-
-	if (p == NULL) {
-		err("popen failed:");
-		return -1;
-	}
-
-	if (process_stdout(p, metric) != 0) {
-		err("process_stdout failed");
-		pclose(p);
-		return -1;
-	}
-
-	pclose(p);
 	return 0;
 }
 
@@ -515,16 +494,10 @@ static void
 print_command(struct sampling *s)
 {
 	if (use_machine_output) {
-		const char *runmode = read_from_stdin ? "stdin" : (
-				use_shell ? "shell" : "exec");
+		const char *runmode = read_from_stdin ? "stdin" : "exec";
 		printf("%-10s %s\n", "runmode", runmode);
 
-		if (read_from_stdin)
-			return;
-
-		if (use_shell) {
-			printf("%-10s %s\n", "command", s->cmd[0]);
-		} else {
+		if (!read_from_stdin) {
 			printf("%-10s ", "command");
 			for (char *const* p = s->cmd; *p; p++) {
 				printf("%s ", *p);
@@ -536,10 +509,8 @@ print_command(struct sampling *s)
 
 	if (read_from_stdin) {
 		printf("    Read from stdin\n");
-	} else if (use_shell) {
-		printf("    Shell: %s\n", s->cmd[0]);
 	} else {
-		printf("    Exec: ");
+		printf("    Cmd: ");
 		for (char *const* p = s->cmd; *p; p++) {
 			printf("%s ", *p);
 		}
@@ -585,13 +556,8 @@ do_sample(char * const cmd[], char * const argv[], int argc)
 				break;
 		} else {
 			double t0 = get_time();
-			if (use_exec) {
-				if (do_exec(cmd, &metric) != 0)
-					return 1;
-			} else {
-				if (do_shell(cmd, &metric) != 0)
-					return 1;
-			}
+			if (do_exec(cmd, &metric) != 0)
+				return 1;
 			double t1 = get_time();
 			walltime = t1 - t0;
 			if (use_wall_clock)
@@ -629,7 +595,6 @@ usage(void)
 {
 	fprintf(stderr, "Usage:\n");
 	fprintf(stderr, "    %s [options] [--] COMMAND [ARGS...]\n", progname_get());
-	fprintf(stderr, "    %s [options] -s SCRIPT\n", progname_get());
 	fprintf(stderr, "    %s [options] -i\n", progname_get());
 	fprintf(stderr, "See the %s(1) manual for more details.\n", progname_get());
 	exit(1);
@@ -641,11 +606,8 @@ main(int argc, char *argv[])
 	progname_set("bigotes");
 	int opt;
 
-	while ((opt = getopt(argc, argv, "simn:wo:qhX")) != -1) {
+	while ((opt = getopt(argc, argv, "imn:wo:qhX")) != -1) {
 		switch (opt) {
-			case 's':
-				use_shell = 1;
-				break;
 			case 'i':
 				read_from_stdin = 1;
 				break;
@@ -675,12 +637,12 @@ main(int argc, char *argv[])
 		}
 	}
 
-	if (use_exec + use_shell + read_from_stdin > 1) {
+	if (use_exec + read_from_stdin > 1) {
 		err("bad usage: only one operation mode allowed");
 		usage();
 	}
 
-	if (!use_exec && !use_shell && !read_from_stdin)
+	if (!use_exec && !read_from_stdin)
 		use_exec = 1;
 
 	char * const * cmd = NULL;
