@@ -115,7 +115,10 @@ stats_mad(double *x, long n, double median)
 double
 stats_percentile(double *x, long n, double p)
 {
-	long i = p * n;
+	if (n <= 0)
+		return NAN;
+
+	long i = p * (n - 1);
 	if (i < 0)
 		i = 0;
 	else if (i >= n)
