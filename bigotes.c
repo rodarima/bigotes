@@ -26,6 +26,8 @@ static int be_quiet = 0;
 static int trim_outliers = 0;
 static long min_samples = 30;
 static const char *output_fname = "bigotes.csv";
+static const char *reference_fname = NULL;
+static int compare_mode = 0;
 
 struct sampling {
 	long nmax;
@@ -278,7 +280,7 @@ should_continue(struct sampling *s)
 }
 
 static void
-add_sample(struct sampling *s, double metric, double walltime)
+load_sample(struct sampling *s, double metric, double walltime)
 {
 	if (s->n >= s->nmax) {
 		err("too many samples");
@@ -289,7 +291,11 @@ add_sample(struct sampling *s, double metric, double walltime)
 	s->n++;
 	s->last = metric;
 	s->wall += walltime;
+}
 
+static void
+write_sample(double metric)
+{
 	if (!read_from_stdin) {
 		FILE *f = fopen(output_fname, "a");
 		if (f == NULL) {
@@ -302,11 +308,11 @@ add_sample(struct sampling *s, double metric, double walltime)
 }
 
 static void
-compute_histogram(struct sampling *s, int nbins, long *count, int cut_outliers)
+hist_bounds(struct sampling *s, int cut_outliers, double *pmin, double *pmax)
 {
 	qsort(s->samples, s->n, sizeof(double), cmp_double);
 
-	double qmin, qmax;
+	double qmin = 0.0, qmax = 0.0;
 	if (cut_outliers) {
 		double q1 = s->samples[s->n / 4];
 		double q3 = s->samples[(s->n * 3) / 4];
@@ -317,6 +323,27 @@ compute_histogram(struct sampling *s, int nbins, long *count, int cut_outliers)
 		qmin = s->samples[0];
 		qmax = s->samples[s->n - 1];
 	}
+
+	dbg("qmin=%e, qmax=%e", qmin, qmax);
+
+	/* Expand limits if needed */
+	if (isnan(*pmin) || qmin < *pmin) {
+		dbg("setting *pmin=qmin=%e", qmin);
+		*pmin = qmin;
+	}
+
+	if (isnan(*pmax) || qmax > *pmax) {
+		dbg("setting *pmax=qmax=%e", qmax);
+		*pmax = qmax;
+	}
+
+	dbg("*pmin=%e, *pmax=%e", *pmin, *pmax);
+}
+
+static void
+compute_histogram(struct sampling *s, int nbins, long *count, double qmin, double qmax)
+{
+	qsort(s->samples, s->n, sizeof(double), cmp_double);
 
 	double binlen = (qmax - qmin) / (double) nbins;
 
@@ -360,11 +387,11 @@ draw_cell(double q)
 }
 
 static void
-plot_histogram(struct sampling *s, int w, int h, int cut_outliers)
+plot_histogram(struct sampling *s, int w, int h, int cut_outliers, double qmin, double qmax)
 {
 	long *count = safe_calloc(w, sizeof(long));
 
-	compute_histogram(s, w, count, cut_outliers);
+	compute_histogram(s, w, count, qmin, qmax);
 
 	long maxcount = 0;
 	for (int i = 0; i < w; i++) {
@@ -396,6 +423,9 @@ plot_histogram(struct sampling *s, int w, int h, int cut_outliers)
 		}
 		putchar('\n');
 	}
+
+	free(barlen);
+	free(count);
 }
 
 static void
@@ -522,6 +552,35 @@ print_command(struct sampling *s)
 static int
 do_sample(char * const cmd[], char * const argv[], int argc)
 {
+	struct sampling ref = { 0 };
+
+	ref.nmax = 5000;
+	ref.samples = safe_calloc(ref.nmax, sizeof(double));
+
+	/* First read reference if in compare mode */
+	if (compare_mode) {
+		FILE *f = fopen(reference_fname, "r");
+		if (f == NULL) {
+			err("fopen failed:");
+			exit(1);
+		}
+		while (1) {
+			double metric;
+			int end = 0;
+			if (do_read(f, &metric, &end) != 0) {
+				err("cannot read sample from %s:",
+						reference_fname);
+				return 1;
+			}
+
+			if (end)
+				break;
+
+			load_sample(&ref, metric, 0.0);
+		}
+		fclose(f);
+	}
+
 	struct sampling s = { 0 };
 	s.nmax = 5000;
 	s.nmin = min_samples;
@@ -565,7 +624,8 @@ do_sample(char * const cmd[], char * const argv[], int argc)
 				metric = walltime;
 		}
 
-		add_sample(&s, metric, walltime);
+		load_sample(&s, metric, walltime);
+		write_sample(metric);
 	}
 
 	/* Always recompute the stats with all samples */
@@ -580,11 +640,29 @@ do_sample(char * const cmd[], char * const argv[], int argc)
 
 	shapiro_wilk_test(&s);
 
-	if (!use_machine_output) {
-		printf("\n"); /* Leave one empty before histogram */
-		plot_histogram(&s, 64, 4, trim_outliers);
-		printf("\n"); /* Leave one empty after histogram */
+	double qmin = NAN;
+	double qmax = NAN;
+
+	printf("\n"); /* Leave one empty before histogram */
+
+	if (compare_mode) {
+		dbg("s->n=%ld ref->n=%ld", s.n, ref.n);
+
+		hist_bounds(&s, trim_outliers, &qmin, &qmax);
+		dbg("bounds: %e %e", qmin, qmax);
+		hist_bounds(&ref, trim_outliers, &qmin, &qmax);
+		dbg("bounds: %e %e", qmin, qmax);
+		plot_histogram(&s, 64, 4, trim_outliers, qmin, qmax);
+		printf("\n");
+		printf("Ref: %s\n", reference_fname);
+		printf("\n");
+		plot_histogram(&ref, 64, 4, trim_outliers, qmin, qmax);
+	} else {
+		hist_bounds(&s, trim_outliers, &qmin, &qmax);
+		plot_histogram(&s, 64, 4, trim_outliers, qmin, qmax);
 	}
+
+	printf("\n");
 
 	free(s.samples);
 
@@ -607,7 +685,7 @@ main(int argc, char *argv[])
 	progname_set("bigotes");
 	int opt;
 
-	while ((opt = getopt(argc, argv, "imn:wo:qhXt:")) != -1) {
+	while ((opt = getopt(argc, argv, "imn:wo:qhXt:c:")) != -1) {
 		switch (opt) {
 			case 'i':
 				read_from_stdin = 1;
@@ -617,6 +695,10 @@ main(int argc, char *argv[])
 				break;
 			case 'o':
 				output_fname = optarg;
+				break;
+			case 'c':
+				reference_fname = optarg;
+				compare_mode = 1;
 				break;
 			case 'q':
 				be_quiet = 1;
